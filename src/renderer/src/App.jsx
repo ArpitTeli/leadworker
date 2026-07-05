@@ -21,6 +21,7 @@ function App() {
   const [updateVersion, setUpdateVersion] = useState(null)
   const [updateProgress, setUpdateProgress] = useState(0)
   const [localMasterPath, setLocalMasterPath] = useState('')
+  const [appVersion, setAppVersion] = useState('')
 
   useEffect(() => {
     const checkRecovery = async () => {
@@ -28,6 +29,7 @@ function App() {
       const state = await window.electronAPI.getState()
       if (state) {
         if (state.localMasterPath) setLocalMasterPath(state.localMasterPath)
+        if (state.appVersion) setAppVersion(state.appVersion)
         if (state.stats && state.stats.total > 0) {
           setStats(state.stats)
           setBatchRows(state.batchRows || [])
@@ -252,7 +254,7 @@ function App() {
       <div className="app">
         <header className="app-header">
           <h1>LeadWorker</h1>
-          <p className="app-subtitle">Lead Review Tool</p>
+          <p className="app-subtitle">Lead Review Tool{appVersion ? ` — v${appVersion}` : ''}</p>
         </header>
         {renderUpdateBanner()}
         <main className="app-main">

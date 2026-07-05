@@ -724,7 +724,8 @@ function setupIPC(win) {
     batchSize: state.batchSize,
     hasUnprocessed: state.hasUnprocessedRows(),
     columnMapping: state.columnMapping,
-    localMasterPath: state.localMasterPath
+    localMasterPath: state.localMasterPath,
+    appVersion: app.getVersion()
   }));
 
   ipcMain.handle(IPC_CHANNELS.BATCH_SIZE_UPDATE, (event, { batchSize }) => {
