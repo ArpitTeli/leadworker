@@ -851,7 +851,9 @@ app.whenReady().then(() => {
       console.error('[updater] Error:', err.message);
     });
 
-    autoUpdater.checkForUpdates().catch(() => {});
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error('[updater] Check for updates failed:', err.message);
+    });
   }
 });
 
