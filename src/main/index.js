@@ -1015,26 +1015,34 @@ app.whenReady().then(() => {
     };
 
     autoUpdater.on('checking-for-update', () => {
+      console.log('[updater] Checking for updates...');
       sendToRenderer('update:checking');
     });
     autoUpdater.on('update-available', (info) => {
+      console.log('[updater] Update available:', info.version);
       sendToRenderer('update:available', { version: info.version });
     });
     autoUpdater.on('update-not-available', () => {
+      console.log('[updater] No update available');
       sendToRenderer('update:not-available');
     });
     autoUpdater.on('download-progress', (progress) => {
+      console.log('[updater] Download progress:', Math.round(progress.percent) + '%');
       sendToRenderer('update:progress', { percent: Math.round(progress.percent) });
     });
     autoUpdater.on('update-downloaded', (info) => {
+      console.log('[updater] Update downloaded:', info.version);
       sendToRenderer('update:downloaded', { version: info.version });
     });
     autoUpdater.on('error', (err) => {
       console.error('[updater] Error:', err.message);
     });
 
-    autoUpdater.checkForUpdates().catch((err) => {
-      console.error('[updater] Check for updates failed:', err.message);
+    mainWindow.webContents.on('did-finish-load', () => {
+      console.log('[updater] Renderer loaded, checking for updates...');
+      autoUpdater.checkForUpdates().catch((err) => {
+        console.error('[updater] Check for updates failed:', err.message);
+      });
     });
   }
 });
