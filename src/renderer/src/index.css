@@ -4,6 +4,16 @@
   box-sizing: border-box;
 }
 
+:root {
+  --background: #1a1a1a;
+  --foreground: #e0e0e0;
+  --muted: rgba(255, 255, 255, 0.05);
+  --muted-foreground: #a1a1a1;
+  --border: #262626;
+  --ring: #4ade80;
+  --radius: 6px;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
   background-color: #1a1a1a;
@@ -748,98 +758,166 @@ body {
 .master-table-wrapper {
   flex: 1;
   overflow: auto;
-  border: 1px solid #333;
-  border-radius: 8px;
+  border: 1px solid var(--border, #333);
+  border-radius: var(--radius, 6px);
 }
 
 .master-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
+  caption-side: bottom;
+}
+
+.master-table thead {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .master-table th {
-  position: sticky;
-  top: 0;
-  background: #252525;
-  padding: 8px 12px;
+  padding: 8px 14px;
   text-align: left;
-  font-weight: 600;
-  color: #888;
-  border-bottom: 1px solid #333;
+  font-weight: 500;
+  color: var(--muted-foreground, #888);
+  border-bottom: 1px solid var(--border, #333);
   white-space: nowrap;
-  z-index: 1;
+}
+
+.master-table th.text-right {
+  text-align: right;
 }
 
 .master-table td {
-  padding: 7px 12px;
-  border-bottom: 1px solid #2a2a2a;
-  color: #ccc;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border, #333);
+  color: var(--foreground, #e0e0e0);
+  vertical-align: middle;
+}
+
+.master-table td.font-medium {
+  font-weight: 500;
+}
+
+.master-table td.text-muted {
+  color: var(--muted-foreground, #999);
+}
+
+.master-table td.text-right {
+  text-align: right;
+}
+
+.master-table tbody tr {
+  transition: background-color 0.15s ease-out;
 }
 
 .master-table tbody tr:hover {
-  background: #252525;
+  background: rgba(255, 255, 255, 0.03);
 }
 
-.master-table tbody tr.tagged-green { background: rgba(74, 222, 128, 0.05); }
-.master-table tbody tr.tagged-yellow { background: rgba(250, 204, 21, 0.05); }
-.master-table tbody tr.tagged-red { background: rgba(248, 113, 113, 0.05); }
-.master-table tbody tr.tagged-blue { background: rgba(96, 165, 250, 0.05); }
-
-.master-table tbody tr.tagged-green:hover { background: rgba(74, 222, 128, 0.1); }
-.master-table tbody tr.tagged-yellow:hover { background: rgba(250, 204, 21, 0.1); }
-.master-table tbody tr.tagged-red:hover { background: rgba(248, 113, 113, 0.1); }
-.master-table tbody tr.tagged-blue:hover { background: rgba(96, 165, 250, 0.1); }
-
-.master-status-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: capitalize;
+.master-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
-.master-status-badge.green { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
-.master-status-badge.yellow { background: rgba(250, 204, 21, 0.15); color: #facc15; }
-.master-status-badge.red { background: rgba(248, 113, 113, 0.15); color: #f87171; }
-.master-status-badge.blue { background: rgba(96, 165, 250, 0.15); color: #60a5fa; }
-
-.master-actions {
+.master-table-footer {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--muted-foreground, #888);
+  border-top: 1px solid var(--border, #333);
+}
+
+/* Badge - matches shadcn/ui Badge pattern */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition: background-color 0.15s;
   white-space: nowrap;
 }
 
+.badge-green {
+  background: rgba(74, 222, 128, 0.1);
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
+.badge-yellow {
+  background: rgba(250, 204, 21, 0.1);
+  color: #facc15;
+  border-color: rgba(250, 204, 21, 0.2);
+}
+
+.badge-red {
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.2);
+}
+
+.badge-blue {
+  background: rgba(96, 165, 250, 0.1);
+  color: #60a5fa;
+  border-color: rgba(96, 165, 250, 0.2);
+}
+
+.badge-muted {
+  background: rgba(255, 255, 255, 0.05);
+  color: #666;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Action buttons - matches shadcn/ui button pattern */
 .btn-discard,
 .btn-push {
-  padding: 3px 10px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
-  border: none;
-  transition: all 0.15s;
+  border: 1px solid transparent;
+  transition: all 0.15s ease-out;
+  white-space: nowrap;
 }
 
 .btn-discard {
-  background: rgba(248, 113, 113, 0.15);
+  background: rgba(248, 113, 113, 0.1);
   color: #f87171;
+  border-color: rgba(248, 113, 113, 0.15);
 }
 
 .btn-discard:hover {
-  background: rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.2);
+}
+
+.btn-discard:active {
+  transform: scale(0.97);
 }
 
 .btn-push {
-  background: rgba(96, 165, 250, 0.15);
+  background: rgba(96, 165, 250, 0.1);
   color: #60a5fa;
+  border-color: rgba(96, 165, 250, 0.15);
 }
 
 .btn-push:hover {
-  background: rgba(96, 165, 250, 0.3);
+  background: rgba(96, 165, 250, 0.2);
+}
+
+.btn-push:active {
+  transform: scale(0.97);
+}
+
+.master-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted-foreground, #666);
+  font-size: 14px;
 }

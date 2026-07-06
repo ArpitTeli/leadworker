@@ -1,6 +1,6 @@
 {
   "name": "quali",
-  "version": "1.0.16",
+  "version": "1.0.18",
   "description": "Lead Review Tool - Batch Google search and triage leads from Excel",
   "main": "dist/main/index.js",
   "scripts": {
@@ -29,7 +29,6 @@
     },
     "win": {
       "target": "nsis",
-      "signAndEditExecutable": false,
       "icon": "QualiLogo.ico"
     },
     "extraResources": [

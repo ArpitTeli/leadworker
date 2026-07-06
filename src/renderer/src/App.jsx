@@ -412,31 +412,33 @@ function App() {
               <table className="master-table">
                 <thead>
                   <tr>
-                    <th>name</th>
-                    <th>query</th>
-                    <th>website</th>
-                    <th>company_phone</th>
-                    <th>email</th>
+                    <th>Candidate</th>
+                    <th>Query</th>
+                    <th>Website</th>
+                    <th>Phone</th>
+                    <th>Email</th>
                     <th>Status</th>
-                    <th>Actions</th>
+                    <th className="text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {masterRows.map((row, i) => {
                     const status = (row['Lead Status'] || '').toLowerCase()
                     return (
-                      <tr key={i} className={`master-row ${status ? 'tagged-' + status : ''}`}>
-                        <td title={row.name}>{row.name || '—'}</td>
-                        <td title={row.query}>{row.query || '—'}</td>
-                        <td title={row.website}>{row.website || '—'}</td>
-                        <td title={row.company_phone}>{row.company_phone || '—'}</td>
-                        <td title={row.email}>{row.email || '—'}</td>
+                      <tr key={i}>
+                        <td className="font-medium">{row.name || '—'}</td>
+                        <td className="text-muted">{row.query || '—'}</td>
+                        <td className="text-muted">{row.website || '—'}</td>
+                        <td className="text-muted">{row.company_phone || '—'}</td>
+                        <td className="text-muted">{row.email || '—'}</td>
                         <td>
-                          {row['Lead Status'] && (
-                            <span className={`master-status-badge ${status}`}>{row['Lead Status']}</span>
+                          {row['Lead Status'] ? (
+                            <span className={`badge badge-${status}`}>{row['Lead Status']}</span>
+                          ) : (
+                            <span className="badge badge-muted">—</span>
                           )}
                         </td>
-                        <td className="master-actions">
+                        <td className="text-right">
                           <button className="btn-discard" onClick={() => handleDiscard(row)} title="Discard">Discard</button>
                           <button className="btn-push" onClick={() => handlePush(row)} title="Push to shared sheet">Push</button>
                         </td>
@@ -445,6 +447,10 @@ function App() {
                   })}
                 </tbody>
               </table>
+              <div className="master-table-footer">
+                <span>Total Candidates</span>
+                <span>{masterRows.length}</span>
+              </div>
             </div>
           )}
         </main>
