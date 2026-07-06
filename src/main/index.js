@@ -204,18 +204,18 @@ class AppState {
     return batch;
   }
 
-  tagRow(rowId, tag) {
+  async tagRow(rowId, tag) {
     const row = this.rows.find(r => r.rowId === rowId);
     if (!row) return false;
     row.tag = tag;
     row.status = ROW_STATUS.TAGGED;
     this.processedCount = this.rows.filter(r => r.status === ROW_STATUS.TAGGED).length;
     this.autosave();
-    this.updateLocalMaster(row, tag);
+    await this.updateLocalMaster(row, tag);
     return true;
   }
 
-  updateLocalMaster(row, tag) {
+  async updateLocalMaster(row, tag) {
     try {
       const masterFile = this.localMasterPath;
       let existingRows = [];
@@ -224,7 +224,18 @@ class AppState {
           const wb = XLSX.readFile(masterFile);
           const sheet = wb.Sheets[wb.SheetNames[0]];
           existingRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-        } catch (e) { existingRows = []; }
+        } catch (e) {
+          console.error('Master file read failed, retrying in 200ms:', e.message);
+          await new Promise(r => setTimeout(r, 200));
+          try {
+            const wb = XLSX.readFile(masterFile);
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            existingRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          } catch (e2) {
+            console.error('Master file read failed again, aborting write to preserve data:', e2.message);
+            return;
+          }
+        }
       }
       const key = `${(row.mappedData?.name || '').toLowerCase()}|${(row.mappedData?.website || '').toLowerCase()}`;
       const existing = existingRows.find(r => {
@@ -691,8 +702,8 @@ function setupIPC(win) {
     return { success: true, batch };
   });
 
-  ipcMain.handle(IPC_CHANNELS.ROW_TAG, (event, { rowId, tag }) => {
-    const success = state.tagRow(rowId, tag);
+  ipcMain.handle(IPC_CHANNELS.ROW_TAG, async (event, { rowId, tag }) => {
+    const success = await state.tagRow(rowId, tag);
     if (success) {
       sendToRenderer(IPC_CHANNELS.ROW_TAGGED, {
         rowId, tag,

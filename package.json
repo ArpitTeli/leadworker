@@ -1,6 +1,6 @@
 {
   "name": "leadworker",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Lead Review Tool - Batch Google search and triage leads from Excel",
   "main": "dist/main/index.js",
   "scripts": {
