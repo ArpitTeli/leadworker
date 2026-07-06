@@ -831,16 +831,19 @@ function setupIPC(win) {
     try {
       const masterFile = state.localMasterPath;
       if (!fs.existsSync(masterFile)) return { success: false, error: 'Master file not found' };
-      if (state.scriptUrl) {
-        try {
-          await fetch(state.scriptUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query, name, website, company_phone, email, pushed_by, 'Lead Status': '' })
-          });
-        } catch (e) {
-          console.error('Push to shared sheet failed:', e.message);
+      if (!state.scriptUrl) return { success: false, error: 'No Apps Script URL configured' };
+      try {
+        const resp = await fetch(state.scriptUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, name, website, company_phone, email, pushed_by, 'Lead Status': '' })
+        });
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => '');
+          return { success: false, error: `Apps Script returned ${resp.status}: ${text.substring(0, 200)}` };
         }
+      } catch (e) {
+        return { success: false, error: 'Network error: ' + e.message };
       }
       const wb = XLSX.readFile(masterFile);
       const sheet = wb.Sheets[wb.SheetNames[0]];
