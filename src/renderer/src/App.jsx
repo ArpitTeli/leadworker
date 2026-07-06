@@ -6,7 +6,7 @@ import { useToast } from './components/Toast'
 import ActivitiesCard from './components/right-panel/ActivitiesCard'
 import EventReminders from './components/right-panel/EventReminders'
 import TodoList from './components/right-panel/TodoList'
-import { FaBell, FaCheck, FaUser, FaFileAlt, FaStar } from 'react-icons/fa'
+import { FaBell } from 'react-icons/fa'
 
 function App() {
   const { addToast, ToastContainer } = useToast()
@@ -340,20 +340,13 @@ function App() {
               headerIcon={<FaBell size={22} />}
               title="Notifications"
               subtitle="Recent activity"
-              activities={[
-                { icon: <FaUser size={18} />, title: 'New lead added', desc: '3 leads from Excel import', time: '2m ago' },
-                { icon: <FaCheck size={18} />, title: 'Lead reviewed', desc: '12 leads marked as Good', time: '15m ago' },
-                { icon: <FaFileAlt size={18} />, title: 'Master exported', desc: 'quali_master.xlsx updated', time: '1h ago' },
-                { icon: <FaStar size={18} />, title: 'Batch completed', desc: '20 leads processed', time: '2h ago' },
-              ]}
+              activities={[]}
             />
             <div className="landing-right-bottom">
               <EventReminders
                 title="Follow-up Reminder"
-                date="2026-07-15"
-                initialReminders={[
-                  { id: '1', type: 'Notification', value: 30, unit: 'minutes' },
-                ]}
+                date=""
+                initialReminders={[]}
               />
               <TodoList />
             </div>

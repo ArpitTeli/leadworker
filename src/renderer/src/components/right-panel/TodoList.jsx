@@ -8,13 +8,7 @@ import { Label } from '../base-ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../base-ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../base-ui/table'
 
-const defaultItems = [
-  { id: '1', client: 'Ash Lounge Chair', fallback: 'AL', time: '2 days', priority: 'High', status: 'Pending' },
-  { id: '2', client: 'Velocity Runner', fallback: 'VR', time: '5 days', priority: 'Medium', status: 'In Progress' },
-  { id: '3', client: 'Orbit Phone X', fallback: 'OP', time: '1 week', priority: 'Low', status: 'Completed' },
-  { id: '4', client: 'Switch Dock Set', fallback: 'SD', time: '3 days', priority: 'High', status: 'Pending' },
-  { id: '5', client: 'Magic Pointer', fallback: 'MP', time: '10 days', priority: 'Medium', status: 'In Progress' },
-]
+const defaultItems = []
 
 const defaultFilters = {
   client: '',
