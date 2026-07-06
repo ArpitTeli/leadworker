@@ -112,12 +112,29 @@ class AppState {
     this.totalCount = 0;
     this.columnMapping = {};
     this.localMasterPath = path.join(app.getPath('documents'), 'leadworker_master.xlsx');
+    this.scriptUrl = 'https://script.google.com/macros/s/AKfycbxm2CFldmla-NbDy92Kbj3SvUVE6EqMXilJaO28J0wvY2bY5zCwJrS5oH6ZHOgdYeZM/exec';
     this.recoveryPath = path.join(app.getPath('userData'), 'recovery.json');
+    this.configPath = path.join(app.getPath('userData'), 'config.json');
+    this.loadConfig();
     this.loadRecovery();
   }
 
-  loadConfig() { /* no-op, kept for compat */ }
-  saveConfig() { /* no-op, kept for compat */ }
+  loadConfig() {
+    try {
+      if (fs.existsSync(this.configPath)) {
+        const cfg = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
+        this.scriptUrl = cfg.scriptUrl || 'https://script.google.com/macros/s/AKfycbxm2CFldmla-NbDy92Kbj3SvUVE6EqMXilJaO28J0wvY2bY5zCwJrS5oH6ZHOgdYeZM/exec';
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  saveConfig() {
+    try {
+      fs.writeFileSync(this.configPath, JSON.stringify({
+        scriptUrl: this.scriptUrl
+      }, null, 2));
+    } catch (e) { console.error('Config save failed:', e); }
+  }
 
   loadFromExcel(filePath, sheetName, data, columnMapping) {
     this.filePath = filePath;
@@ -725,7 +742,8 @@ function setupIPC(win) {
     hasUnprocessed: state.hasUnprocessedRows(),
     columnMapping: state.columnMapping,
     localMasterPath: state.localMasterPath,
-    appVersion: app.getVersion()
+    appVersion: app.getVersion(),
+    scriptUrl: state.scriptUrl
   }));
 
   ipcMain.handle(IPC_CHANNELS.BATCH_SIZE_UPDATE, (event, { batchSize }) => {
@@ -761,6 +779,88 @@ function setupIPC(win) {
     return { success: true };
   });
 
+  ipcMain.handle('master-read', () => {
+    try {
+      const masterFile = state.localMasterPath;
+      if (!fs.existsSync(masterFile)) return { success: true, rows: [] };
+      const wb = XLSX.readFile(masterFile);
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      return { success: true, rows };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('master-discard', (event, { name, website }) => {
+    try {
+      const masterFile = state.localMasterPath;
+      if (!fs.existsSync(masterFile)) return { success: false, error: 'Master file not found' };
+      const wb = XLSX.readFile(masterFile);
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      let rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      const key = `${(name || '').toLowerCase()}|${(website || '').toLowerCase()}`;
+      rows = rows.filter(r => {
+        const rKey = `${(r.name || '').toLowerCase()}|${(r.website || '').toLowerCase()}`;
+        return rKey !== key;
+      });
+      const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status'];
+      const wsData = [headers, ...rows.map(r => headers.map(h => r[h] || ''))];
+      const newWs = XLSX.utils.aoa_to_sheet(wsData);
+      const newWb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(newWb, newWs, 'Master Leads');
+      fs.writeFileSync(masterFile, XLSX.write(newWb, { bookType: 'xlsx', type: 'buffer' }));
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('master-push', async (event, { name, website, query, company_phone, email, pushed_by }) => {
+    try {
+      const masterFile = state.localMasterPath;
+      if (!fs.existsSync(masterFile)) return { success: false, error: 'Master file not found' };
+      if (state.scriptUrl) {
+        try {
+          await fetch(state.scriptUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, name, website, company_phone, email, pushed_by, 'Lead Status': '' })
+          });
+        } catch (e) {
+          console.error('Push to shared sheet failed:', e.message);
+        }
+      }
+      const wb = XLSX.readFile(masterFile);
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      let rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      const key = `${(name || '').toLowerCase()}|${(website || '').toLowerCase()}`;
+      rows = rows.filter(r => {
+        const rKey = `${(r.name || '').toLowerCase()}|${(r.website || '').toLowerCase()}`;
+        return rKey !== key;
+      });
+      const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status'];
+      const wsData = [headers, ...rows.map(r => headers.map(h => r[h] || ''))];
+      const newWs = XLSX.utils.aoa_to_sheet(wsData);
+      const newWb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(newWb, newWs, 'Master Leads');
+      fs.writeFileSync(masterFile, XLSX.write(newWb, { bookType: 'xlsx', type: 'buffer' }));
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('master-set-script-url', (event, { scriptUrl }) => {
+    state.scriptUrl = scriptUrl || '';
+    state.saveConfig();
+    return { success: true };
+  });
+
+  ipcMain.handle('master-get-script-url', () => {
+    return { scriptUrl: state.scriptUrl };
+  });
+
   ipcMain.handle(IPC_CHANNELS.EXPORT_FILE, async () => {
     const defaultPath = state.filePath
       ? state.filePath.replace(/\.xlsx?$/i, '_reviewed.xlsx')
@@ -776,32 +876,6 @@ function setupIPC(win) {
   });
 
   ipcMain.handle(IPC_CHANNELS.RESUME_SESSION, () => state.loadRecovery());
-
-  ipcMain.handle(IPC_CHANNELS.STATE_UPDATE, () => ({
-    stats: state.getStats(),
-    batchRows: state.getBatchRows(),
-    searchColumn: state.searchColumn,
-    filePath: state.filePath,
-    isComplete: state.isAllProcessed(),
-    batchComplete: state.isCurrentBatchComplete(),
-    batchSize: state.batchSize,
-    hasUnprocessed: state.hasUnprocessedRows(),
-    columnMapping: state.columnMapping
-  }));
-
-  const hasRecovery = state.loadRecovery();
-  if (hasRecovery && state.rows.length > 0) {
-    mainWindow.webContents.on('did-finish-load', () => {
-      sendToRenderer(IPC_CHANNELS.STATE_UPDATE, {
-        stats: state.getStats(),
-        batchRows: state.getBatchRows(),
-        batchSize: state.batchSize,
-        columnMapping: state.columnMapping,
-        isComplete: state.isAllProcessed(),
-        batchComplete: state.isCurrentBatchComplete()
-      });
-    });
-  }
 }
 
 // ── App Entry ────────────────────────────────────────────────────────────────

@@ -679,3 +679,167 @@ body {
   font-size: 12px;
   font-weight: 500;
 }
+
+.master-view {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px;
+  overflow-y: auto;
+}
+
+.master-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.master-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.master-name-input {
+  padding: 6px 10px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 13px;
+  width: 200px;
+}
+
+.master-name-input:focus {
+  outline: none;
+  border-color: #4ade80;
+}
+
+.master-row-count {
+  font-size: 12px;
+  color: #888;
+}
+
+.master-script-config {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: #252525;
+  border-radius: 8px;
+}
+
+.master-script-config label {
+  display: block;
+  font-size: 12px;
+  color: #aaa;
+  margin-bottom: 6px;
+}
+
+.master-script-config .input-row input {
+  font-size: 12px;
+}
+
+.master-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: #666;
+  font-size: 14px;
+}
+
+.master-table-wrapper {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid #333;
+  border-radius: 8px;
+}
+
+.master-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.master-table th {
+  position: sticky;
+  top: 0;
+  background: #252525;
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #888;
+  border-bottom: 1px solid #333;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.master-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid #2a2a2a;
+  color: #ccc;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.master-table tbody tr:hover {
+  background: #252525;
+}
+
+.master-table tbody tr.tagged-green { background: rgba(74, 222, 128, 0.05); }
+.master-table tbody tr.tagged-yellow { background: rgba(250, 204, 21, 0.05); }
+.master-table tbody tr.tagged-red { background: rgba(248, 113, 113, 0.05); }
+.master-table tbody tr.tagged-blue { background: rgba(96, 165, 250, 0.05); }
+
+.master-table tbody tr.tagged-green:hover { background: rgba(74, 222, 128, 0.1); }
+.master-table tbody tr.tagged-yellow:hover { background: rgba(250, 204, 21, 0.1); }
+.master-table tbody tr.tagged-red:hover { background: rgba(248, 113, 113, 0.1); }
+.master-table tbody tr.tagged-blue:hover { background: rgba(96, 165, 250, 0.1); }
+
+.master-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.master-status-badge.green { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
+.master-status-badge.yellow { background: rgba(250, 204, 21, 0.15); color: #facc15; }
+.master-status-badge.red { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+.master-status-badge.blue { background: rgba(96, 165, 250, 0.15); color: #60a5fa; }
+
+.master-actions {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.btn-discard,
+.btn-push {
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+
+.btn-discard {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+
+.btn-discard:hover {
+  background: rgba(248, 113, 113, 0.3);
+}
+
+.btn-push {
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+}
+
+.btn-push:hover {
+  background: rgba(96, 165, 250, 0.3);
+}

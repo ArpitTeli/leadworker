@@ -130,11 +130,6 @@ function App() {
                   onClick={() => handleTag(row.rowId, 'red')}
                   title="Red"
                 />
-                <button
-                  className={`tag-btn blue ${row.tag === 'blue' ? 'active' : ''}`}
-                  onClick={() => handleTag(row.rowId, 'blue')}
-                  title="Push Up"
-                />
               </div>
             </div>
           ))

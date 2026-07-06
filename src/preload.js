@@ -50,6 +50,12 @@ const electronAPI = {
   openLocalMaster: () => ipcRenderer.invoke('open-local-master'),
   openSharedFile: () => ipcRenderer.invoke('open-shared-file'),
 
+  masterRead: () => ipcRenderer.invoke('master-read'),
+  masterDiscard: (name, website) => ipcRenderer.invoke('master-discard', { name, website }),
+  masterPush: (data) => ipcRenderer.invoke('master-push', data),
+  masterSetScriptUrl: (scriptUrl) => ipcRenderer.invoke('master-set-script-url', { scriptUrl }),
+  masterGetScriptUrl: () => ipcRenderer.invoke('master-get-script-url'),
+
   onBatchCreated: (callback) => {
     ipcRenderer.on(IPC_CHANNELS.BATCH_CREATED, (event, data) => callback(data));
   },

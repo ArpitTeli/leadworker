@@ -19,9 +19,13 @@ function App() {
   const [rowCount, setRowCount] = useState(0)
   const [updateStatus, setUpdateStatus] = useState(null)
   const [updateVersion, setUpdateVersion] = useState(null)
-  const [updateProgress, setUpdateProgress] = useState(0)
   const [localMasterPath, setLocalMasterPath] = useState('')
   const [appVersion, setAppVersion] = useState('')
+  const [masterRows, setMasterRows] = useState([])
+  const [masterLoading, setMasterLoading] = useState(false)
+  const [pushedByName, setPushedByName] = useState('')
+  const [scriptUrl, setScriptUrl] = useState('')
+  const [scriptUrlInput, setScriptUrlInput] = useState('')
 
   useEffect(() => {
     const checkRecovery = async () => {
@@ -30,17 +34,9 @@ function App() {
       if (state) {
         if (state.localMasterPath) setLocalMasterPath(state.localMasterPath)
         if (state.appVersion) setAppVersion(state.appVersion)
-        if (state.stats && state.stats.total > 0) {
-          setStats(state.stats)
-          setBatchRows(state.batchRows || [])
-          setBatchSize(state.batchSize || 20)
-          setIsComplete(state.isComplete)
-          setBatchComplete(state.batchComplete)
-          setColumnMapping(state.columnMapping || {})
-          if (state.batchRows && state.batchRows.length > 0) {
-            setView('batch')
-            setActiveTab(state.batchRows[0]?.rowId)
-          }
+        if (state.scriptUrl) {
+          setScriptUrl(state.scriptUrl)
+          setScriptUrlInput(state.scriptUrl)
         }
       }
     }
@@ -130,11 +126,9 @@ function App() {
       setUpdateVersion(data.version)
     })
     window.electronAPI.onUpdateNotAvailable(() => setUpdateStatus(null))
-    window.electronAPI.onUpdateProgress((data) => setUpdateProgress(data.percent))
     window.electronAPI.onUpdateDownloaded((data) => {
       setUpdateStatus('downloaded')
       setUpdateVersion(data.version)
-      setUpdateProgress(100)
     })
   }, [])
 
@@ -149,9 +143,7 @@ function App() {
   const handleSetupComplete = useCallback(async (setupData) => {
     setColumnMapping(setupData.columnMapping)
     setBatchSize(setupData.batchSize)
-
     if (!window.electronAPI) return
-
     try {
       const setupResult = await window.electronAPI.completeSetup({
         filePath: setupData.filePath,
@@ -163,7 +155,6 @@ function App() {
         addToast('Setup failed: ' + (setupResult.error || 'Unknown error'), 'error')
         return
       }
-
       const startResult = await window.electronAPI.startBatch()
       if (startResult.success) {
         setView('batch')
@@ -203,6 +194,60 @@ function App() {
     if (!window.electronAPI) return
     await window.electronAPI.openSharedFile()
   }, [])
+
+  const handleOpenMasterViewer = useCallback(async () => {
+    if (!window.electronAPI) return
+    setMasterLoading(true)
+    setView('master')
+    const result = await window.electronAPI.masterRead()
+    if (result.success) {
+      setMasterRows(result.rows)
+    } else {
+      addToast('Failed to read master file: ' + (result.error || 'Unknown error'), 'error')
+      setMasterRows([])
+    }
+    setMasterLoading(false)
+  }, [addToast])
+
+  const handleDiscard = useCallback(async (row) => {
+    if (!window.electronAPI) return
+    const result = await window.electronAPI.masterDiscard(row.name, row.website)
+    if (result.success) {
+      setMasterRows(prev => prev.filter(r => !(r.name === row.name && r.website === row.website)))
+      addToast('Lead discarded', 'info')
+    } else {
+      addToast('Discard failed: ' + (result.error || 'Unknown error'), 'error')
+    }
+  }, [addToast])
+
+  const handlePush = useCallback(async (row) => {
+    if (!window.electronAPI) return
+    if (!pushedByName.trim()) {
+      addToast('Enter your name before pushing', 'error')
+      return
+    }
+    const result = await window.electronAPI.masterPush({
+      query: row.query || '',
+      name: row.name || '',
+      website: row.website || '',
+      company_phone: row.company_phone || '',
+      email: row.email || '',
+      pushed_by: pushedByName.trim()
+    })
+    if (result.success) {
+      setMasterRows(prev => prev.filter(r => !(r.name === row.name && r.website === row.website)))
+      addToast('Lead pushed to shared sheet', 'success')
+    } else {
+      addToast('Push failed: ' + (result.error || 'Unknown error'), 'error')
+    }
+  }, [pushedByName, addToast])
+
+  const handleSaveScriptUrl = useCallback(async () => {
+    if (!window.electronAPI) return
+    await window.electronAPI.masterSetScriptUrl(scriptUrlInput.trim())
+    setScriptUrl(scriptUrlInput.trim())
+    addToast('Apps Script URL saved', 'success')
+  }, [scriptUrlInput, addToast])
 
   const handleTabClick = useCallback((rowId) => {
     setActiveTab(rowId)
@@ -265,6 +310,7 @@ function App() {
                 <h3>Local Master Excel</h3>
                 <p className="master-card-path">{localMasterPath || 'No file yet — start reviewing to create one'}</p>
               </div>
+              <button className="btn btn-primary btn-sm" onClick={handleOpenMasterViewer}>View</button>
               <button className="btn btn-secondary btn-sm" onClick={handleOpenLocalMaster}>Open</button>
             </div>
             <div className="master-card">
@@ -307,6 +353,93 @@ function App() {
             }}
             isAdditional={isAdditional}
           />
+        </main>
+        <ToastContainer />
+      </div>
+    )
+  }
+
+  if (view === 'master') {
+    return (
+      <div className="app">
+        <header className="app-header">
+          <h1>LeadWorker</h1>
+          <p className="app-subtitle">Local Master Excel</p>
+        </header>
+        {renderUpdateBanner()}
+        <main className="app-main master-view">
+          <div className="master-toolbar">
+            <button className="btn btn-secondary btn-sm" onClick={() => setView('landing')}>← Back</button>
+            <div className="master-toolbar-right">
+              <input
+                type="text"
+                className="master-name-input"
+                value={pushedByName}
+                onChange={(e) => setPushedByName(e.target.value)}
+                placeholder="Your name (for pushed_by)"
+              />
+              <span className="master-row-count">{masterRows.length} leads</span>
+            </div>
+          </div>
+          <div className="master-script-config">
+            <label>Apps Script URL (for Push to work)</label>
+            <div className="input-row">
+              <input
+                type="text"
+                value={scriptUrlInput}
+                onChange={(e) => setScriptUrlInput(e.target.value)}
+                placeholder="Paste your Google Apps Script web app URL"
+              />
+              <button className="btn btn-primary btn-sm" onClick={handleSaveScriptUrl} disabled={!scriptUrlInput.trim() || scriptUrlInput.trim() === scriptUrl}>
+                Save
+              </button>
+            </div>
+            {scriptUrl && <span className="settings-hint">URL configured</span>}
+          </div>
+          {masterLoading ? (
+            <div className="master-empty">Loading...</div>
+          ) : masterRows.length === 0 ? (
+            <div className="master-empty">No leads in local master Excel</div>
+          ) : (
+            <div className="master-table-wrapper">
+              <table className="master-table">
+                <thead>
+                  <tr>
+                    <th>name</th>
+                    <th>query</th>
+                    <th>website</th>
+                    <th>company_phone</th>
+                    <th>email</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {masterRows.map((row, i) => {
+                    const status = (row['Lead Status'] || '').toLowerCase()
+                    return (
+                      <tr key={i} className={`master-row ${status ? 'tagged-' + status : ''}`}>
+                        <td title={row.name}>{row.name || '—'}</td>
+                        <td title={row.query}>{row.query || '—'}</td>
+                        <td title={row.website}>{row.website || '—'}</td>
+                        <td title={row.company_phone}>{row.company_phone || '—'}</td>
+                        <td title={row.email}>{row.email || '—'}</td>
+                        <td>
+                          {row['Lead Status'] && (
+                            <span className={`master-status-badge ${status}`}>{row['Lead Status']}</span>
+                          )}
+                        </td>
+                        <td className="master-actions">
+                          <button className="btn-discard" onClick={() => handleDiscard(row)} title="Discard">Discard</button>
+                          <button className="btn-push" onClick={() => handlePush(row)} title="Push to shared sheet">Push</button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </main>
         <ToastContainer />
       </div>
