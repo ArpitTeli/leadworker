@@ -114,10 +114,8 @@ class AppState {
     this.localMasterPath = path.join(app.getPath('documents'), 'quali_master.xlsx');
     this.scriptUrl = 'https://script.google.com/macros/s/AKfycbzY-bRTbKDuLlbUwldHs9LoC9evce_5psKNTPt41mK6VXL-2QrOSjk_IkVHPh5v3fnS/exec';
     this.pushedByName = '';
-    this.pushCounts = {};
     this.activities = [];
     this.todos = [];
-    this.reminders = [];
     this.recoveryPath = path.join(app.getPath('userData'), 'recovery.json');
     this.configPath = path.join(app.getPath('userData'), 'config.json');
     this.loadConfig();
@@ -130,10 +128,8 @@ class AppState {
         const cfg = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
         this.scriptUrl = cfg.scriptUrl || 'https://script.google.com/macros/s/AKfycbzY-bRTbKDuLlbUwldHs9LoC9evce_5psKNTPt41mK6VXL-2QrOSjk_IkVHPh5v3fnS/exec';
         this.pushedByName = cfg.pushedByName || '';
-        this.pushCounts = cfg.pushCounts || {};
         this.activities = cfg.activities || [];
         this.todos = cfg.todos || [];
-        this.reminders = cfg.reminders || [];
       }
     } catch (e) { /* ignore */ }
   }
@@ -143,10 +139,8 @@ class AppState {
       fs.writeFileSync(this.configPath, JSON.stringify({
         scriptUrl: this.scriptUrl,
         pushedByName: this.pushedByName || '',
-        pushCounts: this.pushCounts || {},
         activities: this.activities || [],
-        todos: this.todos || [],
-        reminders: this.reminders || []
+        todos: this.todos || []
       }, null, 2));
     } catch (e) { console.error('Config save failed:', e); }
   }
@@ -918,10 +912,7 @@ function setupIPC(win) {
       } catch (e) {
         return { success: false, error: 'Network error: ' + e.message };
       }
-      if (!state.pushCounts) state.pushCounts = {};
-      const pusher = pushed_by || 'Unknown';
-      state.pushCounts[pusher] = (state.pushCounts[pusher] || 0) + 1;
-      const activity = { type: 'push', title: `Pushed "${name || 'lead'}"`, desc: `To shared sheet by ${pusher}`, time: new Date().toISOString() };
+      const activity = { type: 'push', title: `Pushed "${name || 'lead'}"`, desc: `To shared sheet by ${pushed_by}`, time: new Date().toISOString() };
       if (!state.activities) state.activities = [];
       state.activities.unshift(activity);
       if (state.activities.length > 50) state.activities = state.activities.slice(0, 50);
@@ -966,8 +957,21 @@ function setupIPC(win) {
     return { pushedByName: state.pushedByName || '' };
   });
 
-  ipcMain.handle('master-push-counts', () => {
-    return { pushCounts: state.pushCounts || {} };
+  ipcMain.handle('master-push-counts', async () => {
+    if (!state.scriptUrl) return { pushCounts: {} };
+    try {
+      const separator = state.scriptUrl.includes('?') ? '&' : '?';
+      const resp = await fetch(state.scriptUrl + separator + 'action=leaderboard', {
+        method: 'GET',
+        redirect: 'follow'
+      });
+      if (!resp.ok) return { pushCounts: {} };
+      const text = await resp.text();
+      const data = JSON.parse(text);
+      return { pushCounts: data.pushCounts || {} };
+    } catch (e) {
+      return { pushCounts: {} };
+    }
   });
 
   ipcMain.handle('master-activities', () => {
@@ -980,16 +984,6 @@ function setupIPC(win) {
 
   ipcMain.handle('todos-save', (event, { todos }) => {
     state.todos = todos || [];
-    state.saveConfig();
-    return { success: true };
-  });
-
-  ipcMain.handle('reminders-get', () => {
-    return { reminders: state.reminders || [] };
-  });
-
-  ipcMain.handle('reminders-save', (event, { reminders }) => {
-    state.reminders = reminders || [];
     state.saveConfig();
     return { success: true };
   });

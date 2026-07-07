@@ -4,7 +4,6 @@ import SetupView from './components/SetupView'
 import TabStrip from './components/TabStrip'
 import { useToast } from './components/Toast'
 import ActivitiesCard from './components/right-panel/ActivitiesCard'
-import EventReminders from './components/right-panel/EventReminders'
 import TodoList from './components/right-panel/TodoList'
 import MasterCard from './components/right-panel/MasterCard'
 import CompetitionWidget from './components/right-panel/CompetitionWidget'
@@ -416,11 +415,6 @@ function App() {
               activities={activities}
             />
             <div className="landing-right-bottom">
-              <EventReminders
-                title="Follow-up Reminder"
-                date=""
-                initialReminders={[]}
-              />
               <TodoList />
             </div>
           </div>

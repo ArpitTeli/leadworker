@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { SearchIcon, Plus, X, Trash2 } from 'lucide-react'
 import { Avatar, AvatarFallback } from '../base-ui/avatar'
 import { Badge } from '../base-ui/badge'
@@ -27,16 +27,18 @@ export default function TodoList() {
   const [newClient, setNewClient] = useState('')
   const [newTime, setNewTime] = useState('')
   const [newPriority, setNewPriority] = useState('Medium')
+  const initialLoadDone = useRef(false)
 
   useEffect(() => {
     if (!window.electronAPI) return
     window.electronAPI.todosGet().then((result) => {
       if (result && result.todos) setItems(result.todos)
+      initialLoadDone.current = true
     })
   }, [])
 
   useEffect(() => {
-    if (!window.electronAPI || items.length === 0) return
+    if (!window.electronAPI || !initialLoadDone.current) return
     window.electronAPI.todosSave(items)
   }, [items])
 
