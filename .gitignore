@@ -8,3 +8,4 @@ _buildlog*.txt
 .env
 .DS_Store
 Thumbs.db
+.claude/
