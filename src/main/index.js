@@ -112,7 +112,7 @@ class AppState {
     this.totalCount = 0;
     this.columnMapping = {};
     this.localMasterPath = path.join(app.getPath('documents'), 'quali_master.xlsx');
-    this.scriptUrl = 'https://script.google.com/macros/s/AKfycbzY-bRTbKDuLlbUwldHs9LoC9evce_5psKNTPt41mK6VXL-2QrOSjk_IkVHPh5v3fnS/exec';
+    this.scriptUrl = 'https://script.google.com/macros/s/AKfycbxxXQypf0_eGANH8xdl_TDp_T1crPHo49p4aG7JebmNob_ttptGCKWm7LBdTTLFhA8U/exec';
     this.pushedByName = '';
     this.activities = [];
     this.todos = [];
@@ -126,7 +126,7 @@ class AppState {
     try {
       if (fs.existsSync(this.configPath)) {
         const cfg = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
-        this.scriptUrl = cfg.scriptUrl || 'https://script.google.com/macros/s/AKfycbzY-bRTbKDuLlbUwldHs9LoC9evce_5psKNTPt41mK6VXL-2QrOSjk_IkVHPh5v3fnS/exec';
+        this.scriptUrl = cfg.scriptUrl || 'https://script.google.com/macros/s/AKfycbxxXQypf0_eGANH8xdl_TDp_T1crPHo49p4aG7JebmNob_ttptGCKWm7LBdTTLFhA8U/exec';
         this.pushedByName = cfg.pushedByName || '';
         this.activities = cfg.activities || [];
         this.todos = cfg.todos || [];
@@ -264,7 +264,7 @@ class AppState {
           'Lead Status': statusMap[tag] || ''
         });
       }
-      const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status'];
+      const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status', 'Comments'];
       const wsData = [headers, ...existingRows.map(r => headers.map(h => r[h] || ''))];
       const ws = XLSX.utils.aoa_to_sheet(wsData);
       const wb = XLSX.utils.book_new();
@@ -881,7 +881,7 @@ function setupIPC(win) {
       state.activities.unshift(activity);
       if (state.activities.length > 50) state.activities = state.activities.slice(0, 50);
       state.saveConfig();
-      const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status'];
+      const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status', 'Comments'];
       const wsData = [headers, ...rows.map(r => headers.map(h => r[h] || ''))];
       const newWs = XLSX.utils.aoa_to_sheet(wsData);
       const newWb = XLSX.utils.book_new();
@@ -893,7 +893,29 @@ function setupIPC(win) {
     }
   });
 
-  ipcMain.handle('master-push', async (event, { name, website, query, company_phone, email, pushed_by }) => {
+  ipcMain.handle('master-update-comments', async (event, { name, website, comments }) => {
+    try {
+      const masterFile = state.localMasterPath;
+      if (!fs.existsSync(masterFile)) return { success: false, error: 'Master file not found' };
+      const wb = XLSX.readFile(masterFile);
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      let rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      const key = `${(name || '').toLowerCase()}|${(website || '').toLowerCase()}`;
+      const row = rows.find(r => `${(r.name || '').toLowerCase()}|${(r.website || '').toLowerCase()}` === key);
+      if (row) row['Comments'] = comments || '';
+      const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status', 'Comments'];
+      const wsData = [headers, ...rows.map(r => headers.map(h => r[h] || ''))];
+      const newWs = XLSX.utils.aoa_to_sheet(wsData);
+      const newWb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(newWb, newWs, 'Master Leads');
+      fs.writeFileSync(masterFile, XLSX.write(newWb, { bookType: 'xlsx', type: 'buffer' }));
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('master-push', async (event, { name, website, query, company_phone, email, pushed_by, comments }) => {
     try {
       const masterFile = state.localMasterPath;
       if (!fs.existsSync(masterFile)) return { success: false, error: 'Master file not found' };
@@ -903,7 +925,7 @@ function setupIPC(win) {
         const resp = await fetch(state.scriptUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query, name, website, company_phone: cleanPhone, email, pushed_by, 'Lead Status': '' })
+          body: JSON.stringify({ query, name, website, company_phone: cleanPhone, email, pushed_by, Comments: comments || '', 'Lead Status': '' })
         });
         if (!resp.ok) {
           const text = await resp.text().catch(() => '');
@@ -925,7 +947,7 @@ function setupIPC(win) {
         const rKey = `${(r.name || '').toLowerCase()}|${(r.website || '').toLowerCase()}`;
         return rKey !== key;
       });
-      const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status'];
+      const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status', 'Comments'];
       const wsData = [headers, ...rows.map(r => headers.map(h => r[h] || ''))];
       const newWs = XLSX.utils.aoa_to_sheet(wsData);
       const newWb = XLSX.utils.book_new();

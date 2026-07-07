@@ -60,6 +60,7 @@ const electronAPI = {
   masterGetName: () => ipcRenderer.invoke('master-get-name'),
   masterPushCounts: () => ipcRenderer.invoke('master-push-counts'),
   masterActivities: () => ipcRenderer.invoke('master-activities'),
+  masterUpdateComments: (data) => ipcRenderer.invoke('master-update-comments', data),
   todosGet: () => ipcRenderer.invoke('todos-get'),
   todosSave: (todos) => ipcRenderer.invoke('todos-save', { todos }),
 

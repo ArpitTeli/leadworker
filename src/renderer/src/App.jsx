@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import FilePicker from './components/FilePicker'
 import SetupView from './components/SetupView'
 import TabStrip from './components/TabStrip'
@@ -37,6 +37,9 @@ function App() {
   const [pushCounts, setPushCounts] = useState({})
   const [activities, setActivities] = useState([])
   const [updateDismissed, setUpdateDismissed] = useState(false)
+  const [selectedCommentRow, setSelectedCommentRow] = useState(null)
+  const [commentText, setCommentText] = useState('')
+  const commentTimerRef = useRef(null)
 
   useEffect(() => {
     const checkRecovery = async () => {
@@ -275,7 +278,8 @@ function App() {
       website: row.website || '',
       company_phone: row.company_phone || '',
       email: row.email || '',
-      pushed_by: pushedByName.trim()
+      pushed_by: pushedByName.trim(),
+      comments: row.Comments || ''
     })
     if (result.success) {
       setMasterRows(prev => prev.filter(r => !(r.name === row.name && r.website === row.website)))
@@ -509,6 +513,7 @@ function App() {
                     <th>Phone</th>
                     <th>Email</th>
                     <th>Status</th>
+                    <th>Comments</th>
                     <th className="text-right">Actions</th>
                   </tr>
                 </thead>
@@ -517,7 +522,7 @@ function App() {
                     const status = (row['Lead Status'] || '').toLowerCase()
                     const statusLabel = status === 'green' ? 'Good' : status === 'yellow' ? 'Maybe' : status === 'red' ? 'Bad' : row['Lead Status'] || ''
                     return (
-                      <tr key={i}>
+                      <tr key={i} style={{ cursor: 'pointer' }} onClick={() => { setSelectedCommentRow(row); setCommentText(row.Comments || '') }}>
                         <td className="font-medium">{row.name || '—'}</td>
                         <td className="text-muted">{row.query || '—'}</td>
                         <td className="text-muted">{row.website || '—'}</td>
@@ -530,9 +535,10 @@ function App() {
                             <span className="badge badge-muted">—</span>
                           )}
                         </td>
+                        <td className="text-muted">{row.Comments || '—'}</td>
                         <td className="text-right">
-                          <button className="btn-discard" onClick={() => handleDiscard(row)} title="Discard">Discard</button>
-                          <button className="btn-push" onClick={() => handlePush(row)} title="Push to shared sheet">Push</button>
+                          <button className="btn-discard" onClick={(e) => { e.stopPropagation(); handleDiscard(row) }} title="Discard">Discard</button>
+                          <button className="btn-push" onClick={(e) => { e.stopPropagation(); handlePush(row) }} title="Push to shared sheet">Push</button>
                         </td>
                       </tr>
                     )
@@ -546,6 +552,38 @@ function App() {
             </div>
           )}
         </main>
+        {selectedCommentRow && (
+          <div className="comment-modal-overlay" onClick={() => setSelectedCommentRow(null)}>
+            <div className="comment-modal" onClick={e => e.stopPropagation()}>
+              <h3>{selectedCommentRow.name || 'Lead'}</h3>
+              <textarea
+                autoFocus
+                value={commentText}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setCommentText(val)
+                  setMasterRows(prev => prev.map(r =>
+                    (r.name === selectedCommentRow.name && r.website === selectedCommentRow.website)
+                      ? { ...r, Comments: val }
+                      : r
+                  ))
+                  if (commentTimerRef.current) clearTimeout(commentTimerRef.current)
+                  commentTimerRef.current = setTimeout(() => {
+                    window.electronAPI.masterUpdateComments({
+                      name: selectedCommentRow.name,
+                      website: selectedCommentRow.website,
+                      comments: val
+                    })
+                  }, 500)
+                }}
+                placeholder="Add comments..."
+              />
+              <div className="comment-modal-actions">
+                <button className="btn btn-secondary btn-sm" onClick={() => setSelectedCommentRow(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        )}
         <ToastContainer />
       </div>
     )
