@@ -958,18 +958,23 @@ function setupIPC(win) {
   });
 
   ipcMain.handle('master-push-counts', async () => {
+    console.log('[leaderboard] Fetching, scriptUrl:', state.scriptUrl ? state.scriptUrl.substring(0, 60) + '...' : 'NONE');
     if (!state.scriptUrl) return { pushCounts: {} };
     try {
-      const separator = state.scriptUrl.includes('?') ? '&' : '?';
-      const resp = await fetch(state.scriptUrl + separator + 'action=leaderboard', {
-        method: 'GET',
+      const resp = await fetch(state.scriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'leaderboard' }),
         redirect: 'follow'
       });
-      if (!resp.ok) return { pushCounts: {} };
+      console.log('[leaderboard] Response status:', resp.status, 'ok:', resp.ok);
       const text = await resp.text();
+      console.log('[leaderboard] Response body (first 500 chars):', text.substring(0, 500));
       const data = JSON.parse(text);
+      console.log('[leaderboard] Parsed pushCounts:', JSON.stringify(data.pushCounts));
       return { pushCounts: data.pushCounts || {} };
     } catch (e) {
+      console.error('[leaderboard] Error:', e.message);
       return { pushCounts: {} };
     }
   });
