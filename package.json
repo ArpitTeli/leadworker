@@ -1,6 +1,6 @@
 {
   "name": "quali",
-  "version": "1.1.2",
+  "version": "1.1.13",
   "description": "Lead Review Tool - Batch Google search and triage leads from Excel",
   "main": "dist/main/index.js",
   "scripts": {
@@ -39,7 +39,9 @@
       }
     ],
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "icon": "QualiLogo.png",
+      "artifactName": "${productName}-${version}.${ext}"
     },
     "linux": {
       "target": "AppImage"

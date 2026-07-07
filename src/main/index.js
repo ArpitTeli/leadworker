@@ -3,13 +3,13 @@ const path = require('path');
 const fs = require('fs');
 const XLSX = require('xlsx');
 const { autoUpdater } = require('electron-updater');
+const { STANDARD_COLUMNS, detectColumns, mapRowData } = require('../shared/columnMapping');
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const IPC_CHANNELS = {
   FILE_LOAD: 'file:load',
   FILE_ADD: 'file:add',
-  FILE_DETECT_COLUMNS: 'file:detect-columns',
   BATCH_START: 'batch:start',
   BATCH_NEXT: 'batch:next',
   BATCH_COMPLETED: 'batch:completed',
@@ -20,7 +20,6 @@ const IPC_CHANNELS = {
   TAB_CLOSE: 'tab:close',
   TAB_CLOSED: 'tab:closed',
   STATE_GET: 'state:get',
-  STATE_UPDATE: 'state:update',
   EXPORT_FILE: 'export:file',
   RESUME_SESSION: 'resume:session',
   SETUP_COMPLETE: 'setup:complete',
@@ -36,50 +35,12 @@ const ROW_STATUS = {
   SKIPPED: 'skipped_no_data'
 };
 
-const STANDARD_COLUMNS = ['name', 'query', 'website', 'company_phone', 'email'];
-
-const COLUMN_ALIASES = {
-  name: ['name', 'lead name', 'company name', 'business name', 'firm name', 'contact name'],
-  query: ['query', 'search', 'search term', 'search query'],
-  website: ['website', 'url', 'site', 'web', 'webpage'],
-  company_phone: ['company_phone', 'company phone', 'phone', 'telephone', 'contact number', 'mobile', 'phone number', 'cell', 'tel'],
-  email: ['email', 'e-mail', 'mail', 'contact email', 'email address']
-};
-
 const STATUS_COLORS = {
   green: 'C6EFCE',
   yellow: 'FFEB9C',
   red: 'FFC7CE',
   blue: 'B4D8E7'
 };
-
-// ── Column Detection ─────────────────────────────────────────────────────────
-
-function normalizeHeader(h) {
-  return String(h).toLowerCase().trim().replace(/[\s_-]+/g, ' ');
-}
-
-function detectColumns(headers) {
-  const mapping = {};
-  const normalizedHeaders = headers.map(h => ({ original: h, normalized: normalizeHeader(h) }));
-
-  for (const [standardCol, aliases] of Object.entries(COLUMN_ALIASES)) {
-    const found = normalizedHeaders.find(nh =>
-      aliases.some(alias => nh.normalized === alias || nh.normalized.includes(alias))
-    );
-    mapping[standardCol] = found ? found.original : null;
-  }
-
-  return mapping;
-}
-
-function mapRowData(row, columnMapping) {
-  const mapped = {};
-  for (const [standardCol, sourceCol] of Object.entries(columnMapping)) {
-    mapped[standardCol] = sourceCol && row[sourceCol] != null ? String(row[sourceCol]).trim() : '';
-  }
-  return mapped;
-}
 
 // ── Excel I/O ────────────────────────────────────────────────────────────────
 
@@ -112,7 +73,7 @@ class AppState {
     this.totalCount = 0;
     this.columnMapping = {};
     this.localMasterPath = path.join(app.getPath('documents'), 'quali_master.xlsx');
-    this.scriptUrl = 'https://script.google.com/macros/s/AKfycbxxXQypf0_eGANH8xdl_TDp_T1crPHo49p4aG7JebmNob_ttptGCKWm7LBdTTLFhA8U/exec';
+    this.scriptUrl = 'https://script.google.com/macros/s/AKfycbykxuCQoi6WnnTXKdid4Ql6mwET2C68sMKZCvh7frIcGz5Wxe5lW8YR6c7Yo2s1qhPx/exec';
     this.pushedByName = '';
     this.activities = [];
     this.todos = [];
@@ -122,11 +83,26 @@ class AppState {
     this.loadRecovery();
   }
 
+  reset() {
+    this.rows = [];
+    this.currentBatch = [];
+    this.processedCount = 0;
+    this.totalCount = 0;
+    this.filePath = null;
+    this.columnMapping = {};
+    this.batchSize = 20;
+    try {
+      if (fs.existsSync(this.recoveryPath)) {
+        fs.unlinkSync(this.recoveryPath);
+      }
+    } catch (e) { /* ignore */ }
+  }
+
   loadConfig() {
     try {
       if (fs.existsSync(this.configPath)) {
         const cfg = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
-        this.scriptUrl = cfg.scriptUrl || 'https://script.google.com/macros/s/AKfycbxxXQypf0_eGANH8xdl_TDp_T1crPHo49p4aG7JebmNob_ttptGCKWm7LBdTTLFhA8U/exec';
+        this.scriptUrl = cfg.scriptUrl || 'https://script.google.com/macros/s/AKfycbykxuCQoi6WnnTXKdid4Ql6mwET2C68sMKZCvh7frIcGz5Wxe5lW8YR6c7Yo2s1qhPx/exec';
         this.pushedByName = cfg.pushedByName || '';
         this.activities = cfg.activities || [];
         this.todos = cfg.todos || [];
@@ -163,6 +139,31 @@ class AppState {
         tabOpenedAt: null
       };
     });
+
+    const statusToTag = { 'green': 'green', 'yellow': 'yellow', 'red': 'red', 'blue': 'blue' };
+    let tagLookup = {};
+    try {
+      if (fs.existsSync(this.localMasterPath)) {
+        const wb = XLSX.readFile(this.localMasterPath);
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const masterRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        for (const r of masterRows) {
+          const name = String(r.name || '').trim().toLowerCase();
+          const status = String(r['Lead Status'] || '').trim().toLowerCase();
+          if (name && status && statusToTag[status]) {
+            tagLookup[name] = statusToTag[status];
+          }
+        }
+      }
+    } catch (e) { /* ignore — start fresh */ }
+
+    for (const row of newRows) {
+      const name = String(row.mappedData?.name || '').trim().toLowerCase();
+      if (name && tagLookup[name]) {
+        row.tag = tagLookup[name];
+        row.status = ROW_STATUS.TAGGED;
+      }
+    }
 
     this.rows.push(...newRows);
     this.totalCount = this.rows.filter(r => r.status !== ROW_STATUS.SKIPPED).length;
@@ -677,12 +678,15 @@ function setupIPC(win) {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.SETUP_COMPLETE, (event, { filePath, sheetName, columnMapping, batchSize }) => {
+  ipcMain.handle(IPC_CHANNELS.SETUP_COMPLETE, (event, { filePath, sheetName, columnMapping, batchSize, isAdditional }) => {
     try {
       const wb = readExcel(filePath);
       const sheet = wb.sheets[sheetName];
       if (!sheet || !sheet.data) {
         return { success: false, error: `Sheet "${sheetName}" not found in file` };
+      }
+      if (!isAdditional) {
+        state.reset();
       }
       state.loadFromExcel(filePath, sheetName, sheet.data, columnMapping);
       state.updateBatchSize(batchSize);
@@ -805,8 +809,18 @@ function setupIPC(win) {
     if (miniPlayerWindow && !miniPlayerWindow.isDestroyed()) {
       miniPlayerWindow.close();
     }
+    state.reset();
     sendToRenderer('navigate-home');
     return { success: true };
+  });
+
+  ipcMain.handle('clear-input', () => {
+    destroyAllBrowserViews();
+    if (miniPlayerWindow && !miniPlayerWindow.isDestroyed()) {
+      miniPlayerWindow.close();
+    }
+    state.reset();
+    return { success: true, stats: state.getStats() };
   });
 
   ipcMain.handle('open-local-master', () => {
@@ -920,6 +934,7 @@ function setupIPC(win) {
       const masterFile = state.localMasterPath;
       if (!fs.existsSync(masterFile)) return { success: false, error: 'Master file not found' };
       if (!state.scriptUrl) return { success: false, error: 'No Apps Script URL configured' };
+      let isDuplicate = false;
       try {
         const cleanPhone = String(company_phone || '').replace(/^\+?91/, '');
         const resp = await fetch(state.scriptUrl, {
@@ -931,10 +946,15 @@ function setupIPC(win) {
           const text = await resp.text().catch(() => '');
           return { success: false, error: `Apps Script returned ${resp.status}: ${text.substring(0, 200)}` };
         }
+        const respData = await resp.json().catch(() => ({}));
+        if (respData.duplicate) {
+          isDuplicate = true;
+        }
       } catch (e) {
         return { success: false, error: 'Network error: ' + e.message };
       }
-      const activity = { type: 'push', title: `Pushed "${name || 'lead'}"`, desc: `To shared sheet by ${pushed_by}`, time: new Date().toISOString() };
+      const activityType = isDuplicate ? 'push-duplicate' : 'push';
+      const activity = { type: activityType, title: isDuplicate ? `"${name || 'lead'}" already in shared sheet` : `Pushed "${name || 'lead'}"`, desc: isDuplicate ? `Skipped — already pushed by another user` : `To shared sheet by ${pushed_by}`, time: new Date().toISOString() };
       if (!state.activities) state.activities = [];
       state.activities.unshift(activity);
       if (state.activities.length > 50) state.activities = state.activities.slice(0, 50);
@@ -953,7 +973,7 @@ function setupIPC(win) {
       const newWb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(newWb, newWs, 'Master Leads');
       fs.writeFileSync(masterFile, XLSX.write(newWb, { bookType: 'xlsx', type: 'buffer' }));
-      return { success: true };
+      return { success: true, duplicate: isDuplicate };
     } catch (e) {
       return { success: false, error: e.message };
     }
@@ -1091,6 +1111,20 @@ app.whenReady().then(() => {
         console.error('[updater] Check for updates failed:', err.message);
       });
     });
+
+    if (!mainWindow.webContents.isLoading()) {
+      console.log('[updater] Page already loaded, checking now...');
+      autoUpdater.checkForUpdates().catch((err) => {
+        console.error('[updater] Check for updates failed:', err.message);
+      });
+    }
+
+    setTimeout(() => {
+      console.log('[updater] Fallback check after 3s...');
+      autoUpdater.checkForUpdates().catch((err) => {
+        console.error('[updater] Fallback check failed:', err.message);
+      });
+    }, 3000);
   }
 });
 

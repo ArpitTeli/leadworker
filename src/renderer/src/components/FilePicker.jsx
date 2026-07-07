@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback } from 'react'
 import { Card, CardContent, CardHeader } from './base-ui/card'
 import { Button } from './base-ui/button'
 import { Badge } from './base-ui/badge'
@@ -9,7 +9,6 @@ function FilePicker({ onFileLoad }) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
   const [loadedFile, setLoadedFile] = useState(null)
-  const fileInputRef = useRef(null)
 
   const handleBrowse = useCallback(async () => {
     if (!window.electronAPI) return
@@ -54,15 +53,6 @@ function FilePicker({ onFileLoad }) {
     handleBrowse()
   }, [handleBrowse])
 
-  const handleFileSelect = useCallback((e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleBrowse()
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-  }, [handleBrowse])
-
   const handleRemove = useCallback((e) => {
     e.stopPropagation()
     setLoadedFile(null)
@@ -87,7 +77,7 @@ function FilePicker({ onFileLoad }) {
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => !loadedFile && fileInputRef.current?.click()}
+        onClick={() => !loadedFile && handleBrowse()}
       >
         <CardHeader>
           <div className="file-upload-header-text">
@@ -102,13 +92,6 @@ function FilePicker({ onFileLoad }) {
           )}
         >
           <div className="file-upload-stripes" />
-          <input
-            type="file"
-            ref={fileInputRef}
-            className="file-input-hidden"
-            accept=".xlsx,.xls"
-            onChange={handleFileSelect}
-          />
 
           {!loadedFile ? (
             <>
@@ -129,7 +112,7 @@ function FilePicker({ onFileLoad }) {
                 className="file-upload-browse-btn"
                 onClick={(e) => {
                   e.stopPropagation()
-                  fileInputRef.current?.click()
+                  handleBrowse()
                 }}
               >
                 Browse Files

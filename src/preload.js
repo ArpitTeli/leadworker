@@ -3,7 +3,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 const IPC_CHANNELS = {
   FILE_LOAD: 'file:load',
   FILE_ADD: 'file:add',
-  FILE_DETECT_COLUMNS: 'file:detect-columns',
   BATCH_START: 'batch:start',
   BATCH_NEXT: 'batch:next',
   BATCH_COMPLETED: 'batch:completed',
@@ -14,7 +13,6 @@ const IPC_CHANNELS = {
   TAB_CLOSE: 'tab:close',
   TAB_CLOSED: 'tab:closed',
   STATE_GET: 'state:get',
-  STATE_UPDATE: 'state:update',
   EXPORT_FILE: 'export:file',
   RESUME_SESSION: 'resume:session',
   SETUP_COMPLETE: 'setup:complete',
@@ -26,7 +24,6 @@ const IPC_CHANNELS = {
 const electronAPI = {
   loadFile: () => ipcRenderer.invoke(IPC_CHANNELS.FILE_LOAD),
   addFile: () => ipcRenderer.invoke(IPC_CHANNELS.FILE_ADD),
-  detectColumns: (filePath, sheetName) => ipcRenderer.invoke(IPC_CHANNELS.FILE_DETECT_COLUMNS, { filePath, sheetName }),
   completeSetup: (data) => ipcRenderer.invoke(IPC_CHANNELS.SETUP_COMPLETE, data),
 
   startBatch: () => ipcRenderer.invoke(IPC_CHANNELS.BATCH_START),
@@ -39,7 +36,6 @@ const electronAPI = {
   closeTab: (rowId) => ipcRenderer.invoke(IPC_CHANNELS.TAB_CLOSE, { rowId }),
 
   getState: () => ipcRenderer.invoke(IPC_CHANNELS.STATE_GET),
-  refreshState: () => ipcRenderer.invoke(IPC_CHANNELS.STATE_UPDATE),
 
   exportFile: () => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_FILE),
   resumeSession: () => ipcRenderer.invoke(IPC_CHANNELS.RESUME_SESSION),
@@ -47,6 +43,7 @@ const electronAPI = {
   installUpdate: () => ipcRenderer.invoke('update:install'),
 
   goHome: () => ipcRenderer.invoke('go-home'),
+  clearInput: () => ipcRenderer.invoke('clear-input'),
   openLocalMaster: () => ipcRenderer.invoke('open-local-master'),
   openSharedFile: () => ipcRenderer.invoke('open-shared-file'),
 

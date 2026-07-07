@@ -78,6 +78,21 @@ body {
   background: #2a3a2a;
 }
 
+.btn-clear-input {
+  background: transparent;
+  color: #f87171;
+  border: 1px solid #f87171;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-clear-input:hover {
+  background: #3a2020;
+}
+
 .app-main {
   flex: 1;
   overflow: hidden;

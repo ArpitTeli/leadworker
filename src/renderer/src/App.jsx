@@ -193,7 +193,8 @@ function App() {
         filePath: setupData.filePath,
         sheetName: setupData.sheetName,
         columnMapping: setupData.columnMapping,
-        batchSize: setupData.batchSize
+        batchSize: setupData.batchSize,
+        isAdditional: isAdditional
       })
       if (!setupResult.success) {
         addToast('Setup failed: ' + (setupResult.error || 'Unknown error'), 'error')
@@ -283,7 +284,11 @@ function App() {
     })
     if (result.success) {
       setMasterRows(prev => prev.filter(r => !(r.name === row.name && r.website === row.website)))
-      addToast('Lead pushed to shared sheet', 'success')
+      if (result.duplicate) {
+        addToast(`"${row.name}" already exists in shared sheet — skipped`, 'info')
+      } else {
+        addToast('Lead pushed to shared sheet', 'success')
+      }
       const pcResult = await window.electronAPI.masterPushCounts()
       if (pcResult && pcResult.pushCounts) setPushCounts(pcResult.pushCounts)
       const actResult = await window.electronAPI.masterActivities()
@@ -324,6 +329,23 @@ function App() {
     setIsComplete(false)
     setBatchComplete(false)
     setIsAdditional(false)
+  }, [])
+
+  const handleClearInput = useCallback(async () => {
+    if (!window.electronAPI) return
+    try {
+      await window.electronAPI.clearInput()
+    } catch (e) { /* ignore */ }
+    setExcelData(null)
+    setColumnMapping({})
+    setBatchSize(20)
+    setStats({ total: 0, processed: 0, remaining: 0, inBatch: 0 })
+    setBatchRows([])
+    setActiveTab(null)
+    setIsComplete(false)
+    setBatchComplete(false)
+    setIsAdditional(false)
+    setView('landing')
   }, [])
 
   const renderUpdateBanner = () => {
@@ -600,6 +622,7 @@ function App() {
             <span>{stats.remaining} remaining</span>
             <span className="separator">|</span>
             <button className="btn-add-file" onClick={handleAddFile}>+ Add File</button>
+            <button className="btn-clear-input" onClick={handleClearInput}>Clear Input</button>
           </div>
         </header>
         {renderUpdateBanner()}

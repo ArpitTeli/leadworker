@@ -1,6 +1,9 @@
 node_modules/
 dist/
 release/
+release*/
+_build*.ps1
+_buildlog*.txt
 *.log
 .env
 .DS_Store
