@@ -9,17 +9,6 @@ export default defineConfig({
     react(),
     electron([
       {
-        entry: 'src/shared/columnMapping.js',
-        vite: {
-          build: {
-            outDir: 'dist/shared',
-            rollupOptions: {
-              external: ['electron']
-            }
-          }
-        }
-      },
-      {
         entry: 'src/main/index.js',
         vite: {
           build: {
