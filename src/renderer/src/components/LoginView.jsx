@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { motion } from 'motion/react'
-import bgImage from '../assets/Qrux logo.png'
+import bgImage from '../../assets/Qrux logo.png'
 
 function LoginView({ onLogin }) {
   const [uid, setUid] = useState('')

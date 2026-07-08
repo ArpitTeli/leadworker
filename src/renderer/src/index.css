@@ -2360,7 +2360,7 @@ body {
 .login-btn {
   width: 100%;
   height: 42px;
-  background: #7c3aed;
+  background: #22c55e;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -2371,7 +2371,7 @@ body {
 }
 
 .login-btn:hover {
-  background: #6d28d9;
+  background: #16a34a;
 }
 
 .login-btn:disabled {
