@@ -1,6 +1,6 @@
 {
   "name": "quali",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Lead Review Tool - Batch Google search and triage leads from Excel",
   "main": "dist/main/index.js",
   "scripts": {
