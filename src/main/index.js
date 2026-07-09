@@ -271,9 +271,8 @@ class AppState {
   }
 
   async syncToCloudMaster(name, phone, taggedBy, tag) {
-    if (!this.cloudMasterUrl) { console.error('[CloudMaster] No URL configured'); return; }
+    if (!this.cloudMasterUrl) return { success: false, error: 'No cloud master URL' };
     const normalizedPhone = this.normalizePhone(phone);
-    console.log(`[CloudMaster] Syncing: name="${name}" phone="${normalizedPhone}" taggedBy="${taggedBy}" tag="${tag}"`);
     try {
       const resp = await fetch(this.cloudMasterUrl, {
         method: 'POST',
@@ -281,9 +280,12 @@ class AppState {
         body: JSON.stringify({ action: 'addTag', name, phone: normalizedPhone, taggedBy, tag })
       });
       const text = await resp.text();
-      console.log(`[CloudMaster] Response ${resp.status}:`, text.substring(0, 500));
-      if (!resp.ok) console.error('[CloudMaster] Sync failed:', resp.status);
-    } catch (e) { console.error('[CloudMaster] Sync error:', e.message); }
+      if (!resp.ok) return { success: false, error: `HTTP ${resp.status}: ${text.substring(0, 200)}` };
+      let data;
+      try { data = JSON.parse(text); } catch (e) { return { success: false, error: 'Invalid JSON: ' + text.substring(0, 200) }; }
+      if (!data.success) return { success: false, error: data.error || 'Script returned success:false' };
+      return { success: true };
+    } catch (e) { return { success: false, error: e.message }; }
   }
 
   getNextBatch(size) {
@@ -339,7 +341,15 @@ class AppState {
     const tagName = row.mappedData?.name || '';
     const tagPhone = row.mappedData?.company_phone || '';
     const tagLabel = tag === 'green' ? 'Good' : tag === 'yellow' ? 'Maybe' : tag === 'red' ? 'Bad' : tag;
-    this.syncToCloudMaster(tagName, tagPhone, this.pushedByName, tagLabel).catch(() => {});
+    this.syncToCloudMaster(tagName, tagPhone, this.pushedByName, tagLabel).then(result => {
+      if (!result.success) {
+        const msg = `[${new Date().toISOString()}] Cloud sync FAILED for "${tagName}": ${result.error}`;
+        try { fs.appendFileSync(path.join(app.getPath('userData'), 'cloud_sync.log'), msg + '\n'); } catch(e) {}
+      } else {
+        const msg = `[${new Date().toISOString()}] Cloud sync OK for "${tagName}"`;
+        try { fs.appendFileSync(path.join(app.getPath('userData'), 'cloud_sync.log'), msg + '\n'); } catch(e) {}
+      }
+    });
     return true;
   }
 
@@ -1160,7 +1170,16 @@ function setupIPC(win) {
         if (state.activities.length > 50) state.activities = state.activities.slice(0, 50);
         state.saveConfig();
       }
-      state.syncToCloudMaster(name || '', company_phone || '', state.pushedByName || 'manual', 'Good').catch(() => {});
+      state.syncToCloudMaster(name || '', company_phone || '', state.pushedByName || 'manual', 'Good').then(result => {
+        if (!result.success) {
+          const msg = `[${new Date().toISOString()}] Cloud sync FAILED for "${name}": ${result.error}`;
+          console.error(msg);
+          try { fs.appendFileSync(path.join(app.getPath('userData'), 'cloud_sync.log'), msg + '\n'); } catch(e) {}
+        } else {
+          const msg = `[${new Date().toISOString()}] Cloud sync OK for "${name}"`;
+          try { fs.appendFileSync(path.join(app.getPath('userData'), 'cloud_sync.log'), msg + '\n'); } catch(e) {}
+        }
+      });
       return { success: true };
     } catch (e) {
       return { success: false, error: e.message };
