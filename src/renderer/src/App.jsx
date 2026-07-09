@@ -631,6 +631,15 @@ function App() {
               }} disabled={!cloudMasterUrlInput.trim() || cloudMasterUrlInput.trim() === cloudMasterUrl}>
                 Save
               </button>
+              {cloudMasterUrl && <button className="btn btn-secondary btn-sm" onClick={async () => {
+                const r = await window.electronAPI.cloudMasterDebug()
+                if (r.success) {
+                  console.log('[CloudMaster Debug]', r.body)
+                  addToast('Debug response logged to console (F12)', 'info')
+                } else {
+                  addToast('Debug failed: ' + (r.error || ''), 'error')
+                }
+              }}>Debug</button>}
             </div>
             {cloudMasterUrl && <span className="settings-hint">URL configured</span>}
           </div>

@@ -65,6 +65,7 @@ const electronAPI = {
   fetchCloudMaster: () => ipcRenderer.invoke('cloud-master-fetch'),
   setCloudMasterUrl: (url) => ipcRenderer.invoke('cloud-master-set-url', { url }),
   getCloudMasterUrl: () => ipcRenderer.invoke('cloud-master-get-url'),
+  cloudMasterDebug: () => ipcRenderer.invoke('cloud-master-debug'),
   todosGet: () => ipcRenderer.invoke('todos-get'),
   todosSave: (todos) => ipcRenderer.invoke('todos-save', { todos }),
 

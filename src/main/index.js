@@ -112,7 +112,7 @@ class AppState {
     this.localMasterPath = path.join(app.getPath('documents'), 'quali_master.xlsx');
     this.scriptUrl = 'https://script.google.com/macros/s/AKfycbykxuCQoi6WnnTXKdid4Ql6mwET2C68sMKZCvh7frIcGz5Wxe5lW8YR6c7Yo2s1qhPx/exec';
     this.authScriptUrl = 'https://script.google.com/macros/s/AKfycbyhkpWsu7OoZrYFdAZxJZ74h0HYp0EkzNP21iCID9UHQBGc-Ugchx3m6M60GkTgDv8dtQ/exec';
-    this.cloudMasterUrl = 'https://script.google.com/macros/s/AKfycbzDegegBDSQ8184y3qD_86vb4ZDokMQ6hYGx6UwbA_MjCUVTyIA7PwDLPw1sl1UCcD5RQ/exec';
+    this.cloudMasterUrl = 'https://script.google.com/macros/s/AKfycbzzdnjM8crblZhT7Fpw_yoRpS465ZGV9pRGJEkiFad0FB4lEfh_u3FY9Oi4ze683TgB6A/exec';
     this.cloudMasterNames = new Set();
     this.cloudMasterPhones = new Set();
     this.pushedByName = '';
@@ -146,7 +146,7 @@ class AppState {
         const cfg = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
         this.scriptUrl = cfg.scriptUrl || 'https://script.google.com/macros/s/AKfycbykxuCQoi6WnnTXKdid4Ql6mwET2C68sMKZCvh7frIcGz5Wxe5lW8YR6c7Yo2s1qhPx/exec';
         this.authScriptUrl = cfg.authScriptUrl || 'https://script.google.com/macros/s/AKfycbyhkpWsu7OoZrYFdAZxJZ74h0HYp0EkzNP21iCID9UHQBGc-Ugchx3m6M60GkTgDv8dtQ/exec';
-        this.cloudMasterUrl = cfg.cloudMasterUrl || 'https://script.google.com/macros/s/AKfycbzDegegBDSQ8184y3qD_86vb4ZDokMQ6hYGx6UwbA_MjCUVTyIA7PwDLPw1sl1UCcD5RQ/exec';
+        this.cloudMasterUrl = cfg.cloudMasterUrl || 'https://script.google.com/macros/s/AKfycbzzdnjM8crblZhT7Fpw_yoRpS465ZGV9pRGJEkiFad0FB4lEfh_u3FY9Oi4ze683TgB6A/exec';
         this.pushedByName = cfg.pushedByName || '';
         this.authSession = cfg.authSession || null;
         this.activities = cfg.activities || [];
@@ -215,7 +215,7 @@ class AppState {
 
     const filtered = newRows.filter(row => {
       const name = String(row.mappedData?.name || '').trim().toLowerCase();
-      const phone = String(row.mappedData?.company_phone || '').trim().replace(/^\+?91/, '');
+      const phone = this.normalizePhone(row.mappedData?.company_phone);
       if (name && this.cloudMasterNames.has(name)) return false;
       if (phone && this.cloudMasterPhones.has(phone)) return false;
       return true;
@@ -230,35 +230,62 @@ class AppState {
     return { skippedByCloud };
   }
 
+  normalizePhone(raw) {
+    const digits = String(raw || '').replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+    if (digits.length === 13 && digits.startsWith('91')) return digits.slice(3);
+    if (digits.length > 10) return digits.slice(-10);
+    return digits;
+  }
+
   async fetchCloudMaster() {
     if (!this.cloudMasterUrl) return { success: false, error: 'No cloud master URL configured' };
+    console.log('[CloudMaster] Fetching from:', this.cloudMasterUrl);
     try {
       const resp = await fetch(this.cloudMasterUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'getTaggedNames' })
       });
+      const text = await resp.text();
+      console.log('[CloudMaster] Response', resp.status, ':', text.substring(0, 500));
       if (!resp.ok) return { success: false, error: `Server returned ${resp.status}` };
-      const data = await resp.json();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error('[CloudMaster] Response is not JSON:', text.substring(0, 200));
+        return { success: false, error: 'Invalid JSON response — visit the URL in your browser first to accept permissions' };
+      }
       if (data.success && Array.isArray(data.taggedLeads)) {
         this.cloudMasterNames = new Set(data.taggedLeads.map(l => String(l.name || '').trim().toLowerCase()));
-        this.cloudMasterPhones = new Set(data.taggedLeads.map(l => String(l.phone || '').trim().replace(/^\+?91/, '')));
+        this.cloudMasterPhones = new Set(data.taggedLeads.map(l => this.normalizePhone(l.phone)));
+        console.log(`[CloudMaster] Fetched ${this.cloudMasterNames.size} names, ${this.cloudMasterPhones.size} phones`);
+      } else {
+        console.error('[CloudMaster] Unexpected response:', JSON.stringify(data).substring(0, 300));
       }
       return { success: true, count: this.cloudMasterNames.size };
     } catch (e) {
+      console.error('[CloudMaster] Fetch error:', e.message);
       return { success: false, error: 'Network error: ' + e.message };
     }
   }
 
   async syncToCloudMaster(name, phone, taggedBy, tag) {
-    if (!this.cloudMasterUrl) return;
+    if (!this.cloudMasterUrl) { console.error('[CloudMaster] No URL configured'); return; }
+    const normalizedPhone = this.normalizePhone(phone);
+    console.log(`[CloudMaster] Syncing: name="${name}" phone="${normalizedPhone}" taggedBy="${taggedBy}" tag="${tag}"`);
     try {
-      await fetch(this.cloudMasterUrl, {
+      const resp = await fetch(this.cloudMasterUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'addTag', name, phone: String(phone || '').replace(/^\+?91/, ''), taggedBy, tag })
+        body: JSON.stringify({ action: 'addTag', name, phone: normalizedPhone, taggedBy, tag })
       });
-    } catch (e) { /* non-critical, ignore */ }
+      const text = await resp.text();
+      console.log(`[CloudMaster] Response ${resp.status}:`, text.substring(0, 500));
+      if (!resp.ok) console.error('[CloudMaster] Sync failed:', resp.status);
+    } catch (e) { console.error('[CloudMaster] Sync error:', e.message); }
   }
 
   getNextBatch(size) {
@@ -967,6 +994,21 @@ function setupIPC(win) {
     return { url: state.cloudMasterUrl };
   });
 
+  ipcMain.handle('cloud-master-debug', async () => {
+    if (!state.cloudMasterUrl) return { success: false, error: 'No URL configured' };
+    try {
+      const resp = await fetch(state.cloudMasterUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'getTaggedNames' })
+      });
+      const text = await resp.text();
+      return { success: true, status: resp.status, body: text.substring(0, 2000) };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
   ipcMain.handle('open-local-master', () => {
     const masterPath = state.localMasterPath;
     if (fs.existsSync(masterPath)) {
@@ -1137,7 +1179,7 @@ function setupIPC(win) {
       if (!state.scriptUrl) return { success: false, error: 'No Apps Script URL configured' };
       let isDuplicate = false;
       try {
-        const cleanPhone = String(company_phone || '').replace(/^\+?91/, '');
+        const cleanPhone = state.normalizePhone(company_phone);
         const resp = await fetch(state.scriptUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
