@@ -46,8 +46,6 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true)
   const [showAddLead, setShowAddLead] = useState(false)
   const [cloudMasterFiltered, setCloudMasterFiltered] = useState(0)
-  const [cloudMasterUrl, setCloudMasterUrl] = useState('')
-  const [cloudMasterUrlInput, setCloudMasterUrlInput] = useState('')
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -60,12 +58,7 @@ function App() {
         }
       } catch (e) { /* ignore */ }
       try {
-        const cmResult = await window.electronAPI.getCloudMasterUrl()
-        if (cmResult && cmResult.url) {
-          setCloudMasterUrl(cmResult.url)
-          setCloudMasterUrlInput(cmResult.url)
-          await window.electronAPI.fetchCloudMaster()
-        }
+        await window.electronAPI.fetchCloudMaster()
       } catch (e) { /* ignore */ }
       setAuthLoading(false)
     }
@@ -611,37 +604,19 @@ function App() {
             {scriptUrl && <span className="settings-hint">URL configured</span>}
           </div>
           <div className="master-script-config">
-            <label>Cloud Master URL (for cross-qualifier dedup)</label>
+            <label>Cross-Qualifier Dedup (Cloud Master)</label>
             <div className="input-row">
-              <input
-                type="text"
-                value={cloudMasterUrlInput}
-                onChange={(e) => setCloudMasterUrlInput(e.target.value)}
-                placeholder="Paste cloud master Apps Script URL"
-              />
-              <button className="btn btn-primary btn-sm" onClick={async () => {
-                const url = cloudMasterUrlInput.trim()
-                await window.electronAPI.setCloudMasterUrl(url)
-                setCloudMasterUrl(url)
-                if (url) {
-                  const r = await window.electronAPI.fetchCloudMaster()
-                  if (r.success) addToast(`Cloud master loaded — ${r.count} tagged leads`, 'success')
-                  else addToast('Failed to fetch cloud master: ' + (r.error || ''), 'error')
-                }
-              }} disabled={!cloudMasterUrlInput.trim() || cloudMasterUrlInput.trim() === cloudMasterUrl}>
-                Save
-              </button>
-              {cloudMasterUrl && <button className="btn btn-secondary btn-sm" onClick={async () => {
+              <span className="settings-hint">Active — leads tagged across all devices are deduplicated automatically</span>
+              <button className="btn btn-secondary btn-sm" onClick={async () => {
                 const r = await window.electronAPI.cloudMasterDebug()
                 if (r.success) {
                   console.log('[CloudMaster Debug]', r.body)
-                  addToast('Debug response logged to console (F12)', 'info')
+                  addToast(`${r.count || 0} leads in cloud master`, 'success')
                 } else {
                   addToast('Debug failed: ' + (r.error || ''), 'error')
                 }
-              }}>Debug</button>}
+              }}>Test</button>
             </div>
-            {cloudMasterUrl && <span className="settings-hint">URL configured</span>}
           </div>
           {masterLoading ? (
             <div className="master-empty">Loading...</div>

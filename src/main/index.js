@@ -146,7 +146,6 @@ class AppState {
         const cfg = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
         this.scriptUrl = cfg.scriptUrl || 'https://script.google.com/macros/s/AKfycbykxuCQoi6WnnTXKdid4Ql6mwET2C68sMKZCvh7frIcGz5Wxe5lW8YR6c7Yo2s1qhPx/exec';
         this.authScriptUrl = cfg.authScriptUrl || 'https://script.google.com/macros/s/AKfycbyhkpWsu7OoZrYFdAZxJZ74h0HYp0EkzNP21iCID9UHQBGc-Ugchx3m6M60GkTgDv8dtQ/exec';
-        this.cloudMasterUrl = cfg.cloudMasterUrl || 'https://script.google.com/macros/s/AKfycbzzdnjM8crblZhT7Fpw_yoRpS465ZGV9pRGJEkiFad0FB4lEfh_u3FY9Oi4ze683TgB6A/exec';
         this.pushedByName = cfg.pushedByName || '';
         this.authSession = cfg.authSession || null;
         this.activities = cfg.activities || [];
@@ -160,7 +159,6 @@ class AppState {
       fs.writeFileSync(this.configPath, JSON.stringify({
         scriptUrl: this.scriptUrl,
         authScriptUrl: this.authScriptUrl,
-        cloudMasterUrl: this.cloudMasterUrl,
         pushedByName: this.pushedByName || '',
         authSession: this.authSession || null,
         activities: this.activities || [],
@@ -984,12 +982,6 @@ function setupIPC(win) {
     return await state.fetchCloudMaster();
   });
 
-  ipcMain.handle('cloud-master-set-url', (event, { url }) => {
-    state.cloudMasterUrl = url || '';
-    state.saveConfig();
-    return { success: true };
-  });
-
   ipcMain.handle('cloud-master-get-url', () => {
     return { url: state.cloudMasterUrl };
   });
@@ -1003,7 +995,9 @@ function setupIPC(win) {
         body: JSON.stringify({ action: 'getTaggedNames' })
       });
       const text = await resp.text();
-      return { success: true, status: resp.status, body: text.substring(0, 2000) };
+      let count = 0;
+      try { count = JSON.parse(text).taggedLeads?.length || 0; } catch(e) {}
+      return { success: true, status: resp.status, count, body: text.substring(0, 2000) };
     } catch (e) {
       return { success: false, error: e.message };
     }
