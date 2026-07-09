@@ -530,6 +530,7 @@ const state = new AppState();
 let mainWindow = null;
 let miniPlayerWindow = null;
 let browserViews = new Map();
+let activeViewRowId = null;
 const TAB_STRIP_HEIGHT = 38;
 
 function getPreloadPath() {
@@ -600,6 +601,7 @@ function destroyAllBrowserViews() {
     try { view.webContents.close(); } catch (e) {}
   });
   browserViews.clear();
+  activeViewRowId = null;
 }
 
 function switchToView(rowId) {
@@ -609,6 +611,7 @@ function switchToView(rowId) {
     try { mainWindow.removeBrowserView(v); } catch (e) {}
   });
   mainWindow.addBrowserView(view);
+  activeViewRowId = rowId;
   updateBrowserViewBounds();
   mainWindow.focus();
 }
@@ -1025,39 +1028,30 @@ function setupIPC(win) {
   });
 
   ipcMain.handle('browser-back', () => {
-    if (u && !u.isDestroyed()) {
-      const views = u.getBrowserViews();
-      if (views.length > 0) {
-        const active = views[views.length - 1];
-        if (active.webContents && !active.webContents.isDestroyed() && active.webContents.canGoBack()) {
-          active.webContents.goBack();
-        }
+    if (activeViewRowId) {
+      const view = browserViews.get(activeViewRowId);
+      if (view && view.webContents && !view.webContents.isDestroyed() && view.webContents.canGoBack()) {
+        view.webContents.goBack();
       }
     }
     return { success: true };
   });
 
   ipcMain.handle('browser-forward', () => {
-    if (u && !u.isDestroyed()) {
-      const views = u.getBrowserViews();
-      if (views.length > 0) {
-        const active = views[views.length - 1];
-        if (active.webContents && !active.webContents.isDestroyed() && active.webContents.canGoForward()) {
-          active.webContents.goForward();
-        }
+    if (activeViewRowId) {
+      const view = browserViews.get(activeViewRowId);
+      if (view && view.webContents && !view.webContents.isDestroyed() && view.webContents.canGoForward()) {
+        view.webContents.goForward();
       }
     }
     return { success: true };
   });
 
   ipcMain.handle('browser-refresh', () => {
-    if (u && !u.isDestroyed()) {
-      const views = u.getBrowserViews();
-      if (views.length > 0) {
-        const active = views[views.length - 1];
-        if (active.webContents && !active.webContents.isDestroyed()) {
-          active.webContents.reload();
-        }
+    if (activeViewRowId) {
+      const view = browserViews.get(activeViewRowId);
+      if (view && view.webContents && !view.webContents.isDestroyed()) {
+        view.webContents.reload();
       }
     }
     return { success: true };

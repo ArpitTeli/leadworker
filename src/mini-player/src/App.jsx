@@ -140,23 +140,6 @@ function App() {
       </div>
 
       <div className="mini-player-footer">
-        <div className="mini-player-nav">
-          <button className="btn-nav" onClick={() => window.electronAPI.browserBack()} title="Back">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
-            </svg>
-          </button>
-          <button className="btn-nav" onClick={() => window.electronAPI.browserForward()} title="Forward">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>
-            </svg>
-          </button>
-          <button className="btn-nav" onClick={() => window.electronAPI.browserRefresh()} title="Refresh">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
-            </svg>
-          </button>
-        </div>
         <div className="mini-player-progress">
           <div className="progress-bar">
             <div
