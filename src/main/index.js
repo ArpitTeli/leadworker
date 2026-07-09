@@ -314,7 +314,7 @@ class AppState {
     const tagName = row.mappedData?.name || '';
     const tagPhone = row.mappedData?.company_phone || '';
     const tagLabel = tag === 'green' ? 'Good' : tag === 'yellow' ? 'Maybe' : tag === 'red' ? 'Bad' : tag;
-    this.syncToCloudMaster(tagName, tagPhone, this.pushedByName, tagLabel);
+    this.syncToCloudMaster(tagName, tagPhone, this.pushedByName, tagLabel).catch(() => {});
     return true;
   }
 
