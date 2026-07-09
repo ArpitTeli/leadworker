@@ -112,7 +112,7 @@ class AppState {
     this.localMasterPath = path.join(app.getPath('documents'), 'quali_master.xlsx');
     this.scriptUrl = 'https://script.google.com/macros/s/AKfycbykxuCQoi6WnnTXKdid4Ql6mwET2C68sMKZCvh7frIcGz5Wxe5lW8YR6c7Yo2s1qhPx/exec';
     this.authScriptUrl = 'https://script.google.com/macros/s/AKfycbyhkpWsu7OoZrYFdAZxJZ74h0HYp0EkzNP21iCID9UHQBGc-Ugchx3m6M60GkTgDv8dtQ/exec';
-    this.cloudMasterUrl = '';
+    this.cloudMasterUrl = 'https://script.google.com/macros/s/AKfycbzDegegBDSQ8184y3qD_86vb4ZDokMQ6hYGx6UwbA_MjCUVTyIA7PwDLPw1sl1UCcD5RQ/exec';
     this.cloudMasterNames = new Set();
     this.cloudMasterPhones = new Set();
     this.pushedByName = '';
@@ -146,7 +146,7 @@ class AppState {
         const cfg = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
         this.scriptUrl = cfg.scriptUrl || 'https://script.google.com/macros/s/AKfycbykxuCQoi6WnnTXKdid4Ql6mwET2C68sMKZCvh7frIcGz5Wxe5lW8YR6c7Yo2s1qhPx/exec';
         this.authScriptUrl = cfg.authScriptUrl || 'https://script.google.com/macros/s/AKfycbyhkpWsu7OoZrYFdAZxJZ74h0HYp0EkzNP21iCID9UHQBGc-Ugchx3m6M60GkTgDv8dtQ/exec';
-        this.cloudMasterUrl = cfg.cloudMasterUrl || '';
+        this.cloudMasterUrl = cfg.cloudMasterUrl || 'https://script.google.com/macros/s/AKfycbzDegegBDSQ8184y3qD_86vb4ZDokMQ6hYGx6UwbA_MjCUVTyIA7PwDLPw1sl1UCcD5RQ/exec';
         this.pushedByName = cfg.pushedByName || '';
         this.authSession = cfg.authSession || null;
         this.activities = cfg.activities || [];
