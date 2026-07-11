@@ -42,7 +42,7 @@ function App() {
   const [selectedCommentRow, setSelectedCommentRow] = useState(null)
   const [commentText, setCommentText] = useState('')
   const commentTimerRef = useRef(null)
-  const [auth, setAuth] = useState({ loggedIn: false, displayName: '', uid: '' })
+  const [auth, setAuth] = useState({ loggedIn: false, displayName: '', uid: '', masterSheetId: '' })
   const [authLoading, setAuthLoading] = useState(true)
   const [showAddLead, setShowAddLead] = useState(false)
   const [cloudMasterFiltered, setCloudMasterFiltered] = useState(0)
@@ -53,7 +53,7 @@ function App() {
       try {
         const result = await window.electronAPI.checkAuth()
         if (result.loggedIn) {
-          setAuth({ loggedIn: true, displayName: result.displayName, uid: result.uid })
+          setAuth({ loggedIn: true, displayName: result.displayName, uid: result.uid, masterSheetId: result.masterSheetId || '' })
           setPushedByName(result.displayName)
         }
       } catch (e) { /* ignore */ }
@@ -264,7 +264,7 @@ function App() {
   const handleLogin = useCallback(async ({ uid, password }) => {
     const result = await window.electronAPI.login(uid, password)
     if (result.success) {
-      setAuth({ loggedIn: true, displayName: result.displayName, uid })
+      setAuth({ loggedIn: true, displayName: result.displayName, uid, masterSheetId: result.masterSheetId || '' })
       setPushedByName(result.displayName)
     }
     return result
@@ -273,7 +273,7 @@ function App() {
   const handleLogout = useCallback(async () => {
     if (!window.electronAPI) return
     await window.electronAPI.logout()
-    setAuth({ loggedIn: false, displayName: '', uid: '' })
+    setAuth({ loggedIn: false, displayName: '', uid: '', masterSheetId: '' })
     setPushedByName('')
     setView('landing')
   }, [])
@@ -466,10 +466,10 @@ function App() {
             <div className="landing-cards">
               <MasterCard
                 icon={<FileText size={20} />}
-                title="Local Master Excel"
+                title="Master"
                 miniGraph="M2 18C15 15 25 5 45 8C65 11 70 2 78 2"
                 stats={[
-                  { icon: <FileText size={14} />, label: 'File', value: <span className="mc-stat-text">{localMasterPath ? 'quali_master.xlsx' : 'No file yet'}</span> },
+                  { icon: <FileText size={14} />, label: 'Source', value: <span className="mc-stat-text">{auth.masterSheetId ? 'Google Sheet' : (localMasterPath ? 'quali_master.xlsx' : 'Not connected')}</span> },
                   { icon: <BarChart3 size={14} />, label: 'Total Leads', value: <span className="mc-stat-bold">{masterStats.totalLeads}</span> },
                   { icon: <CheckCircle size={14} />, label: 'Good', value: <span className="mc-stat-green">{masterStats.good}</span> },
                   { icon: <AlertCircle size={14} />, label: 'Maybe', value: <span className="mc-stat-yellow">{masterStats.maybe}</span> },
@@ -563,7 +563,7 @@ function App() {
       <div className="app">
         <header className="app-header">
           <h1>Quali</h1>
-          <p className="app-subtitle">Local Master Excel</p>
+          <p className="app-subtitle">Master</p>
           <div className="header-user">
             <span className="header-username">{auth.displayName}</span>
             <button className="btn-logout" onClick={handleLogout}>Logout</button>

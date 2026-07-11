@@ -113,10 +113,13 @@ class AppState {
     this.scriptUrl = 'https://script.google.com/macros/s/AKfycbykxuCQoi6WnnTXKdid4Ql6mwET2C68sMKZCvh7frIcGz5Wxe5lW8YR6c7Yo2s1qhPx/exec';
     this.authScriptUrl = 'https://script.google.com/macros/s/AKfycbyhkpWsu7OoZrYFdAZxJZ74h0HYp0EkzNP21iCID9UHQBGc-Ugchx3m6M60GkTgDv8dtQ/exec';
     this.cloudMasterUrl = 'https://script.google.com/macros/s/AKfycbzzdnjM8crblZhT7Fpw_yoRpS465ZGV9pRGJEkiFad0FB4lEfh_u3FY9Oi4ze683TgB6A/exec';
+    this.perUserMasterUrl = 'https://script.google.com/macros/s/AKfycby1UfC7JXPZ3LKqyqmrZGNL3C-sOqlX10dw1agPXoMS1yG2IuN_zuMbx7uBPVW6uIGX/exec';
     this.cloudMasterNames = new Set();
     this.cloudMasterPhones = new Set();
     this.pushedByName = '';
     this.authSession = null;
+    this.masterSheetId = null;
+    this.masterMigrated = false;
     this.activities = [];
     this.todos = [];
     this.recoveryPath = path.join(app.getPath('userData'), 'recovery.json');
@@ -145,9 +148,12 @@ class AppState {
       if (fs.existsSync(this.configPath)) {
         const cfg = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
         this.scriptUrl = cfg.scriptUrl || 'https://script.google.com/macros/s/AKfycbykxuCQoi6WnnTXKdid4Ql6mwET2C68sMKZCvh7frIcGz5Wxe5lW8YR6c7Yo2s1qhPx/exec';
-        this.authScriptUrl = cfg.authScriptUrl || 'https://script.google.com/macros/s/AKfycbyhkpWsu7OoZrYFdAZxJZ74h0HYp0EkzNP21iCID9UHQBGc-Ugchx3m6M60GkTgDv8dtQ/exec';
+        this.authScriptUrl = cfg.authScriptUrl || 'https://script.google.com/macros/s/AKfycby2uJSX2B_U2mhhHbddDinjogb_EgfGO0rw2jo266A1qYhTIysL0Smsky-ovxqnMUI3zg/exec';
+        this.perUserMasterUrl = cfg.perUserMasterUrl || 'https://script.google.com/macros/s/AKfycby1UfC7JXPZ3LKqyqmrZGNL3C-sOqlX10dw1agPXoMS1yG2IuN_zuMbx7uBPVW6uIGX/exec';
         this.pushedByName = cfg.pushedByName || '';
         this.authSession = cfg.authSession || null;
+        this.masterSheetId = cfg.authSession?.masterSheetId || null;
+        this.masterMigrated = cfg.masterMigrated || false;
         this.activities = cfg.activities || [];
         this.todos = cfg.todos || [];
       }
@@ -159,15 +165,17 @@ class AppState {
       fs.writeFileSync(this.configPath, JSON.stringify({
         scriptUrl: this.scriptUrl,
         authScriptUrl: this.authScriptUrl,
+        perUserMasterUrl: this.perUserMasterUrl,
         pushedByName: this.pushedByName || '',
         authSession: this.authSession || null,
+        masterMigrated: this.masterMigrated || false,
         activities: this.activities || [],
         todos: this.todos || []
       }, null, 2));
     } catch (e) { console.error('Config save failed:', e); }
   }
 
-  loadFromExcel(filePath, sheetName, data, columnMapping) {
+  async loadFromExcel(filePath, sheetName, data, columnMapping) {
     this.filePath = filePath;
     this.columnMapping = columnMapping;
     this.searchColumn = 'name';
@@ -186,22 +194,42 @@ class AppState {
       };
     });
 
-    const statusToTag = { 'green': 'green', 'yellow': 'yellow', 'red': 'red', 'blue': 'blue' };
+    const statusToTag = { 'green': 'green', 'yellow': 'yellow', 'red': 'red', 'blue': 'blue', 'good': 'green', 'maybe': 'yellow', 'bad': 'red' };
     let tagLookup = {};
-    try {
-      if (fs.existsSync(this.localMasterPath)) {
-        const wb = XLSX.readFile(this.localMasterPath);
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        const masterRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-        for (const r of masterRows) {
-          const name = String(r.name || '').trim().toLowerCase();
-          const status = String(r['Lead Status'] || '').trim().toLowerCase();
-          if (name && status && statusToTag[status]) {
-            tagLookup[name] = statusToTag[status];
+
+    // Try Google Sheet first
+    if (this.masterSheetId) {
+      try {
+        const sheetData = await this.postMasterToSheet('readMaster');
+        if (sheetData.rows) {
+          for (const r of sheetData.rows) {
+            const name = String(r.name || '').trim().toLowerCase();
+            const status = String(r['Lead Status'] || '').trim().toLowerCase();
+            if (name && status && statusToTag[status]) {
+              tagLookup[name] = statusToTag[status];
+            }
           }
         }
-      }
-    } catch (e) { /* ignore — start fresh */ }
+      } catch (e) { /* fall through to local */ }
+    }
+
+    // Fall back to local Excel if Google Sheet didn't work
+    if (Object.keys(tagLookup).length === 0) {
+      try {
+        if (fs.existsSync(this.localMasterPath)) {
+          const wb = XLSX.readFile(this.localMasterPath);
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const masterRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          for (const r of masterRows) {
+            const name = String(r.name || '').trim().toLowerCase();
+            const status = String(r['Lead Status'] || '').trim().toLowerCase();
+            if (name && status && statusToTag[status]) {
+              tagLookup[name] = statusToTag[status];
+            }
+          }
+        }
+      } catch (e) { /* ignore — start fresh */ }
+    }
 
     for (const row of newRows) {
       const name = String(row.mappedData?.name || '').trim().toLowerCase();
@@ -235,6 +263,80 @@ class AppState {
     if (digits.length === 13 && digits.startsWith('91')) return digits.slice(3);
     if (digits.length > 10) return digits.slice(-10);
     return digits;
+  }
+
+  async postMasterToSheet(action, body = {}) {
+    if (!this.perUserMasterUrl || !this.masterSheetId) {
+      return { error: 'Not connected to Google Sheet' }
+    }
+    try {
+      const resp = await fetch(this.perUserMasterUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, sheetId: this.masterSheetId, ...body })
+      })
+      const text = await resp.text()
+      try { return JSON.parse(text) }
+      catch { return { error: 'Invalid response from Google Sheet' } }
+    } catch (e) {
+      return { error: 'Network error: ' + e.message }
+    }
+  }
+
+  async migrateLocalMasterToSheet() {
+    if (!this.masterSheetId) return
+    if (!fs.existsSync(this.localMasterPath)) return
+    try {
+      const wb = XLSX.readFile(this.localMasterPath)
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      const localRows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
+      if (localRows.length === 0) return
+
+      const existing = await this.postMasterToSheet('readMaster')
+      if (existing.error) {
+        console.error('[Migration] Cannot read Google Sheet:', existing.error)
+        return
+      }
+
+      const existingSet = new Set()
+      for (const r of (existing.rows || [])) {
+        existingSet.add(
+          (r.name || '').trim().toLowerCase() + '|' + (r.website || '').trim().toLowerCase()
+        )
+      }
+
+      const missing = localRows.filter(r => {
+        const key = (r.name || '').trim().toLowerCase() + '|' + (r.website || '').trim().toLowerCase()
+        return !existingSet.has(key)
+      })
+
+      if (missing.length === 0) {
+        console.log('[Migration] All rows already in Google Sheet')
+        this.markMigrated()
+        return
+      }
+
+      console.log(`[Migration] Uploading ${missing.length} rows to Google Sheet...`)
+      const result = await this.postMasterToSheet('batchAddMasterLeads', { rows: missing })
+      if (result.error) {
+        console.error('[Migration] Upload failed:', result.error)
+        return
+      }
+
+      console.log(`[Migration] Done: ${result.added} added, ${result.updated} updated`)
+      this.markMigrated()
+    } catch (e) {
+      console.error('[Migration] Error:', e.message)
+    }
+  }
+
+  markMigrated() {
+    this.masterMigrated = true
+    try {
+      const cfg = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'))
+      cfg.masterMigrated = true
+      fs.writeFileSync(this.configPath, JSON.stringify(cfg, null, 2))
+    } catch (e) {}
   }
 
   async fetchCloudMaster() {
@@ -395,6 +497,21 @@ class AppState {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Master Leads');
       fs.writeFileSync(masterFile, XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' }));
+      // Fire-and-forget: write to Google Sheet
+      if (state.masterSheetId) {
+        const statusLabel = { green: 'Green', yellow: 'Yellow', red: 'Red', blue: 'Blue' };
+        state.postMasterToSheet('addMasterLead', {
+          row: {
+            query: row.mappedData?.query || '',
+            name: row.mappedData?.name || '',
+            website: row.mappedData?.website || '',
+            company_phone: row.mappedData?.company_phone || '',
+            email: row.mappedData?.email || '',
+            'Lead Status': statusLabel[tag] || '',
+            'Comments': ''
+          }
+        }).catch(e => console.error('[Master] Google Sheet write failed:', e.message));
+      }
     } catch (e) {
       console.error('Update local master failed:', e);
     }
@@ -805,7 +922,7 @@ function setupIPC(win) {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.SETUP_COMPLETE, (event, { filePath, sheetName, columnMapping, batchSize, isAdditional }) => {
+  ipcMain.handle(IPC_CHANNELS.SETUP_COMPLETE, async (event, { filePath, sheetName, columnMapping, batchSize, isAdditional }) => {
     try {
       const wb = readExcel(filePath);
       const sheet = wb.sheets[sheetName];
@@ -815,7 +932,7 @@ function setupIPC(win) {
       if (!isAdditional) {
         state.reset();
       }
-      const result = state.loadFromExcel(filePath, sheetName, sheet.data, columnMapping);
+      const result = await state.loadFromExcel(filePath, sheetName, sheet.data, columnMapping);
       state.updateBatchSize(batchSize);
       return { success: true, stats: state.getStats(), skippedByCloud: result?.skippedByCloud || 0 };
     } catch (err) {
@@ -918,6 +1035,7 @@ function setupIPC(win) {
     hasUnprocessed: state.hasUnprocessedRows(),
     columnMapping: state.columnMapping,
     localMasterPath: state.localMasterPath,
+    masterSheetId: state.masterSheetId,
     appVersion: app.getVersion(),
     scriptUrl: state.scriptUrl
   }));
@@ -962,9 +1080,14 @@ function setupIPC(win) {
       }
       const data = await resp.json();
       if (data.success) {
-        state.authSession = { uid, displayName: data.displayName, loggedIn: true };
+        if (!data.masterSheetId) {
+          return { success: false, error: 'Login succeeded but master sheet not created. Please try again.' };
+        }
+        state.authSession = { uid, displayName: data.displayName, loggedIn: true, masterSheetId: data.masterSheetId };
+        state.masterSheetId = data.masterSheetId;
         state.pushedByName = data.displayName;
         state.saveConfig();
+        state.migrateLocalMasterToSheet();
       }
       return data;
     } catch (e) {
@@ -974,6 +1097,7 @@ function setupIPC(win) {
 
   ipcMain.handle('auth-logout', () => {
     state.authSession = null;
+    state.masterSheetId = null;
     state.pushedByName = '';
     state.saveConfig();
     return { success: true };
@@ -981,8 +1105,17 @@ function setupIPC(win) {
 
   ipcMain.handle('auth-check', () => {
     if (state.authSession && state.authSession.loggedIn) {
+      if (!state.authSession.masterSheetId) {
+        return { loggedIn: false };
+      }
       state.pushedByName = state.authSession.displayName;
-      return { loggedIn: true, displayName: state.authSession.displayName, uid: state.authSession.uid };
+      state.masterSheetId = state.authSession.masterSheetId;
+      return {
+        loggedIn: true,
+        displayName: state.authSession.displayName,
+        uid: state.authSession.uid,
+        masterSheetId: state.authSession.masterSheetId
+      };
     }
     return { loggedIn: false };
   });
@@ -1057,20 +1190,37 @@ function setupIPC(win) {
     return { success: true };
   });
 
-  ipcMain.handle('master-read', () => {
+  ipcMain.handle('master-read', async () => {
+    // Try Google Sheet first
+    if (state.masterSheetId) {
+      const result = await state.postMasterToSheet('readMaster');
+      if (!result.error && result.rows) {
+        return { success: true, rows: result.rows, source: 'google' };
+      }
+      console.error('[master-read] Google Sheet failed, falling back to local:', result.error);
+    }
+    // Fall back to local Excel
     try {
       const masterFile = state.localMasterPath;
-      if (!fs.existsSync(masterFile)) return { success: true, rows: [] };
+      if (!fs.existsSync(masterFile)) return { success: true, rows: [], source: 'local' };
       const wb = XLSX.readFile(masterFile);
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-      return { success: true, rows };
+      return { success: true, rows, source: 'local' };
     } catch (e) {
       return { success: false, error: e.message };
     }
   });
 
-  ipcMain.handle('master-stats', () => {
+  ipcMain.handle('master-stats', async () => {
+    // Try Google Sheet first
+    if (state.masterSheetId) {
+      const result = await state.postMasterToSheet('getMasterStats');
+      if (!result.error && result.totalLeads !== undefined) {
+        return { success: true, ...result, source: 'google' };
+      }
+    }
+    // Fall back to local Excel
     try {
       const masterFile = state.localMasterPath;
       if (!fs.existsSync(masterFile)) {
@@ -1082,78 +1232,110 @@ function setupIPC(win) {
       const stats = { totalLeads: rows.length, good: 0, maybe: 0, bad: 0 };
       rows.forEach(r => {
         const s = (r['Lead Status'] || '').toLowerCase();
-        if (s === 'green') stats.good++;
-        else if (s === 'yellow') stats.maybe++;
-        else if (s === 'red') stats.bad++;
+        if (s === 'green' || s === 'good') stats.good++;
+        else if (s === 'yellow' || s === 'maybe') stats.maybe++;
+        else if (s === 'red' || s === 'bad') stats.bad++;
       });
       let lastModified = null;
       try {
         const stat = fs.statSync(masterFile);
         lastModified = stat.mtime.toISOString();
       } catch (e) {}
-      return { success: true, ...stats, lastModified };
+      return { success: true, ...stats, lastModified, source: 'local' };
     } catch (e) {
       return { success: false, error: e.message };
     }
   });
 
-  ipcMain.handle('master-discard', (event, { name, website }) => {
+  ipcMain.handle('master-discard', async (event, { name, website }) => {
+    // Try Google Sheet first
+    if (state.masterSheetId) {
+      const result = await state.postMasterToSheet('discardMasterRow', { name, website });
+      if (result.error) {
+        return { success: false, error: 'Google Sheet: ' + result.error };
+      }
+    }
+    // Also remove from local Excel backup
     try {
       const masterFile = state.localMasterPath;
-      if (!fs.existsSync(masterFile)) return { success: false, error: 'Master file not found' };
-      const wb = XLSX.readFile(masterFile);
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      let rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-      const key = `${(name || '').toLowerCase()}|${(website || '').toLowerCase()}`;
-      rows = rows.filter(r => {
-        const rKey = `${(r.name || '').toLowerCase()}|${(r.website || '').toLowerCase()}`;
-        return rKey !== key;
-      });
-      const activity = { type: 'discard', title: `Discarded "${name || 'lead'}"`, desc: 'Removed from local master', time: new Date().toISOString() };
-      if (!state.activities) state.activities = [];
-      state.activities.unshift(activity);
-      if (state.activities.length > 50) state.activities = state.activities.slice(0, 50);
-      state.saveConfig();
-      const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status', 'Comments'];
-      const wsData = [headers, ...rows.map(r => headers.map(h => r[h] || ''))];
-      const newWs = XLSX.utils.aoa_to_sheet(wsData);
-      const newWb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(newWb, newWs, 'Master Leads');
-      fs.writeFileSync(masterFile, XLSX.write(newWb, { bookType: 'xlsx', type: 'buffer' }));
-      return { success: true };
-    } catch (e) {
-      return { success: false, error: e.message };
-    }
+      if (fs.existsSync(masterFile)) {
+        const wb = XLSX.readFile(masterFile);
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        let rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        const key = `${(name || '').toLowerCase()}|${(website || '').toLowerCase()}`;
+        rows = rows.filter(r => {
+          const rKey = `${(r.name || '').toLowerCase()}|${(r.website || '').toLowerCase()}`;
+          return rKey !== key;
+        });
+        const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status', 'Comments'];
+        const wsData = [headers, ...rows.map(r => headers.map(h => r[h] || ''))];
+        const newWs = XLSX.utils.aoa_to_sheet(wsData);
+        const newWb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(newWb, newWs, 'Master Leads');
+        fs.writeFileSync(masterFile, XLSX.write(newWb, { bookType: 'xlsx', type: 'buffer' }));
+      }
+    } catch (e) { /* local backup removal failed — not critical */ }
+    const activity = { type: 'discard', title: `Discarded "${name || 'lead'}"`, desc: 'Removed from master', time: new Date().toISOString() };
+    if (!state.activities) state.activities = [];
+    state.activities.unshift(activity);
+    if (state.activities.length > 50) state.activities = state.activities.slice(0, 50);
+    state.saveConfig();
+    return { success: true };
   });
 
   ipcMain.handle('master-update-comments', async (event, { name, website, comments }) => {
+    // Update Google Sheet
+    if (state.masterSheetId) {
+      await state.postMasterToSheet('updateMasterRow', { name, website, field: 'Comments', value: comments || '' });
+    }
+    // Also update local Excel backup
     try {
       const masterFile = state.localMasterPath;
-      if (!fs.existsSync(masterFile)) return { success: false, error: 'Master file not found' };
-      const wb = XLSX.readFile(masterFile);
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      let rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-      const key = `${(name || '').toLowerCase()}|${(website || '').toLowerCase()}`;
-      const row = rows.find(r => `${(r.name || '').toLowerCase()}|${(r.website || '').toLowerCase()}` === key);
-      if (row) row['Comments'] = comments || '';
-      const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status', 'Comments'];
-      const wsData = [headers, ...rows.map(r => headers.map(h => r[h] || ''))];
-      const newWs = XLSX.utils.aoa_to_sheet(wsData);
-      const newWb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(newWb, newWs, 'Master Leads');
-      fs.writeFileSync(masterFile, XLSX.write(newWb, { bookType: 'xlsx', type: 'buffer' }));
-      return { success: true };
-    } catch (e) {
-      return { success: false, error: e.message };
-    }
+      if (fs.existsSync(masterFile)) {
+        const wb = XLSX.readFile(masterFile);
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        let rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        const key = `${(name || '').toLowerCase()}|${(website || '').toLowerCase()}`;
+        const row = rows.find(r => `${(r.name || '').toLowerCase()}|${(r.website || '').toLowerCase()}` === key);
+        if (row) row['Comments'] = comments || '';
+        const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status', 'Comments'];
+        const wsData = [headers, ...rows.map(r => headers.map(h => r[h] || ''))];
+        const newWs = XLSX.utils.aoa_to_sheet(wsData);
+        const newWb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(newWb, newWs, 'Master Leads');
+        fs.writeFileSync(masterFile, XLSX.write(newWb, { bookType: 'xlsx', type: 'buffer' }));
+      }
+    } catch (e) { /* local backup update failed — not critical */ }
+    return { success: true };
   });
 
   ipcMain.handle('master-add-lead', async (event, { name, website, company_phone, email, query }) => {
     try {
-      try {
-        const logPath = path.join(app.getPath('home'), 'Desktop', 'cloud_sync.log');
-        fs.appendFileSync(logPath, `[${new Date().toISOString()}] master-add-lead CALLED name="${name}" phone="${company_phone}"\n`);
-      } catch(e) {}
+      const hasAny = [name, website, company_phone, email, query].some(v => v && v.trim());
+      if (!hasAny) return { success: false, error: 'At least one field is required' };
+
+      // Refresh cloud master data before checking
+      await state.fetchCloudMaster();
+      const checkName = String(name || '').trim().toLowerCase();
+      const checkPhone = state.normalizePhone(company_phone);
+      if (checkName && state.cloudMasterNames.has(checkName)) {
+        return { success: false, error: `"${name}" already exists in cloud master — cannot contact this lead` };
+      }
+      if (checkPhone && state.cloudMasterPhones.has(checkPhone)) {
+        return { success: false, error: `Phone ${company_phone} already exists in cloud master — cannot contact this lead` };
+      }
+
+      // Add to per-user Google Sheet
+      if (state.masterSheetId) {
+        const result = await state.postMasterToSheet('addMasterLead', {
+          row: { query: query || '', name: name || '', website: website || '', company_phone: company_phone || '', email: email || '', 'Lead Status': 'Good', 'Comments': '' }
+        });
+        if (result.error) {
+          return { success: false, error: 'Google Sheet: ' + result.error };
+        }
+      }
+
+      // Also add to local Excel backup
       const masterFile = state.localMasterPath;
       let existingRows = [];
       if (fs.existsSync(masterFile)) {
@@ -1167,23 +1349,8 @@ function setupIPC(win) {
             const wb = XLSX.readFile(masterFile);
             const sheet = wb.Sheets[wb.SheetNames[0]];
             existingRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-          } catch (e2) {
-            return { success: false, error: 'Failed to read master file' };
-          }
+          } catch (e2) { /* skip local write */ }
         }
-      }
-      const hasAny = [name, website, company_phone, email, query].some(v => v && v.trim());
-      if (!hasAny) return { success: false, error: 'At least one field is required' };
-
-      // Refresh cloud master data before checking
-      await state.fetchCloudMaster();
-      const checkName = String(name || '').trim().toLowerCase();
-      const checkPhone = state.normalizePhone(company_phone);
-      if (checkName && state.cloudMasterNames.has(checkName)) {
-        return { success: false, error: `"${name}" already exists in cloud master — cannot contact this lead` };
-      }
-      if (checkPhone && state.cloudMasterPhones.has(checkPhone)) {
-        return { success: false, error: `Phone ${company_phone} already exists in cloud master — cannot contact this lead` };
       }
       const key = `${(name || '').toLowerCase()}|${(website || '').toLowerCase()}`;
       const existing = existingRows.find(r => `${(r.name || '').toLowerCase()}|${(r.website || '').toLowerCase()}` === key);
@@ -1206,29 +1373,17 @@ function setupIPC(win) {
       const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status', 'Comments'];
       const wsData = [headers, ...existingRows.map(r => headers.map(h => r[h] || ''))];
       const ws = XLSX.utils.aoa_to_sheet(wsData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Master Leads');
-      fs.writeFileSync(masterFile, XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' }));
+      const wbNew = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wbNew, ws, 'Master Leads');
+      try { fs.writeFileSync(masterFile, XLSX.write(wbNew, { bookType: 'xlsx', type: 'buffer' })); } catch (e) {}
+
       if (!existing) {
         state.activities.unshift({ type: 'add', title: `Added "${name || 'lead'}" manually`, desc: 'Lead added with Good status', time: new Date().toISOString() });
         if (state.activities.length > 50) state.activities = state.activities.slice(0, 50);
         state.saveConfig();
       }
       const syncResult = await state.syncToCloudMaster(name || '', company_phone || '', state.pushedByName || 'manual', 'Good');
-      try {
-        const homeDir = app.getPath('home');
-        const logPath = path.join(homeDir, 'Desktop', 'cloud_sync.log');
-        const logMsg = `[${new Date().toISOString()}] name="${name}" phone="${company_phone}" pushedBy="${state.pushedByName}" => ${JSON.stringify(syncResult)}\n`;
-        fs.appendFileSync(logPath, logMsg);
-      } catch(logErr) {
-        try {
-          const logPath2 = path.join(app.getPath('userData'), 'cloud_sync.log');
-          const logMsg = `[${new Date().toISOString()}] name="${name}" phone="${company_phone}" pushedBy="${state.pushedByName}" => ${JSON.stringify(syncResult)}\n`;
-          fs.appendFileSync(logPath2, logMsg);
-        } catch(e2) {}
-      }
       return { success: true, syncResult };
-      return { success: true };
     } catch (e) {
       return { success: false, error: e.message };
     }
@@ -1264,20 +1419,30 @@ function setupIPC(win) {
       state.activities.unshift(activity);
       if (state.activities.length > 50) state.activities = state.activities.slice(0, 50);
       state.saveConfig();
-      const wb = XLSX.readFile(masterFile);
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      let rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-      const key = `${(name || '').toLowerCase()}|${(website || '').toLowerCase()}`;
-      rows = rows.filter(r => {
-        const rKey = `${(r.name || '').toLowerCase()}|${(r.website || '').toLowerCase()}`;
-        return rKey !== key;
-      });
-      const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status', 'Comments'];
-      const wsData = [headers, ...rows.map(r => headers.map(h => r[h] || ''))];
-      const newWs = XLSX.utils.aoa_to_sheet(wsData);
-      const newWb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(newWb, newWs, 'Master Leads');
-      fs.writeFileSync(masterFile, XLSX.write(newWb, { bookType: 'xlsx', type: 'buffer' }));
+      // Remove from per-user Google Sheet
+      if (state.masterSheetId) {
+        await state.postMasterToSheet('discardMasterRow', { name, website });
+      }
+      // Remove from local Excel backup
+      try {
+        const masterFile = state.localMasterPath;
+        if (fs.existsSync(masterFile)) {
+          const wb = XLSX.readFile(masterFile);
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          let rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          const key = `${(name || '').toLowerCase()}|${(website || '').toLowerCase()}`;
+          rows = rows.filter(r => {
+            const rKey = `${(r.name || '').toLowerCase()}|${(r.website || '').toLowerCase()}`;
+            return rKey !== key;
+          });
+          const headers = ['query', 'name', 'website', 'company_phone', 'email', 'Lead Status', 'Comments'];
+          const wsData = [headers, ...rows.map(r => headers.map(h => r[h] || ''))];
+          const newWs = XLSX.utils.aoa_to_sheet(wsData);
+          const newWb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(newWb, newWs, 'Master Leads');
+          fs.writeFileSync(masterFile, XLSX.write(newWb, { bookType: 'xlsx', type: 'buffer' }));
+        }
+      } catch (e) { /* local backup removal failed — not critical */ }
       return { success: true, duplicate: isDuplicate };
     } catch (e) {
       return { success: false, error: e.message };
