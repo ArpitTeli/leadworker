@@ -113,7 +113,7 @@ class AppState {
     this.scriptUrl = 'https://script.google.com/macros/s/AKfycbykxuCQoi6WnnTXKdid4Ql6mwET2C68sMKZCvh7frIcGz5Wxe5lW8YR6c7Yo2s1qhPx/exec';
     this.authScriptUrl = 'https://script.google.com/macros/s/AKfycbyhkpWsu7OoZrYFdAZxJZ74h0HYp0EkzNP21iCID9UHQBGc-Ugchx3m6M60GkTgDv8dtQ/exec';
     this.cloudMasterUrl = 'https://script.google.com/macros/s/AKfycbzzdnjM8crblZhT7Fpw_yoRpS465ZGV9pRGJEkiFad0FB4lEfh_u3FY9Oi4ze683TgB6A/exec';
-    this.perUserMasterUrl = 'https://script.google.com/macros/s/AKfycby1UfC7JXPZ3LKqyqmrZGNL3C-sOqlX10dw1agPXoMS1yG2IuN_zuMbx7uBPVW6uIGX/exec';
+    this.perUserMasterUrl = 'https://script.google.com/macros/s/AKfycbxL2X74YLdJMLWkql1kPMgi4m6zViXp75DN0m9OovSq9Gkd1WZ9H-wlafF4FxSamq8J/exec';
     this.cloudMasterNames = new Set();
     this.cloudMasterPhones = new Set();
     this.pushedByName = '';
@@ -149,7 +149,7 @@ class AppState {
         const cfg = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
         this.scriptUrl = cfg.scriptUrl || 'https://script.google.com/macros/s/AKfycbykxuCQoi6WnnTXKdid4Ql6mwET2C68sMKZCvh7frIcGz5Wxe5lW8YR6c7Yo2s1qhPx/exec';
         this.authScriptUrl = cfg.authScriptUrl || 'https://script.google.com/macros/s/AKfycby2uJSX2B_U2mhhHbddDinjogb_EgfGO0rw2jo266A1qYhTIysL0Smsky-ovxqnMUI3zg/exec';
-        this.perUserMasterUrl = cfg.perUserMasterUrl || 'https://script.google.com/macros/s/AKfycby1UfC7JXPZ3LKqyqmrZGNL3C-sOqlX10dw1agPXoMS1yG2IuN_zuMbx7uBPVW6uIGX/exec';
+        this.perUserMasterUrl = cfg.perUserMasterUrl || 'https://script.google.com/macros/s/AKfycbxL2X74YLdJMLWkql1kPMgi4m6zViXp75DN0m9OovSq9Gkd1WZ9H-wlafF4FxSamq8J/exec';
         this.pushedByName = cfg.pushedByName || '';
         this.authSession = cfg.authSession || null;
         this.masterSheetId = cfg.authSession?.masterSheetId || null;
